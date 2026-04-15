@@ -2,8 +2,6 @@
     Holt Spy - Advanced Remote Spy
     Made by BufferClick
     Discord: https://discord.gg/E7Tfjgruck
-    
-    Usage: Paste Part 1, then on a new line paste Part 2.
 ]]
 
 if getgenv().HoltSpyExecuted and type(getgenv().HoltSpyShutdown) == "function" then
@@ -11,2294 +9,2172 @@ if getgenv().HoltSpyExecuted and type(getgenv().HoltSpyShutdown) == "function" t
 end
 
 -- ============================================================
--- CORE UTILITIES AND ENVIRONMENT SETUP
+-- SERVICES AND UTILITIES
+-- ============================================================
+
+local function blankfunction(...) return ... end
+
+local cloneref = cloneref or blankfunction
+local newcclosure = newcclosure or blankfunction
+local clonefunction = clonefunction or blankfunction
+local getcallingscript = getcallingscript or blankfunction
+local makewritable = makewriteable or (setreadonly and function(t) setreadonly(t, false) end) or blankfunction
+local makereadonly = makereadonly or (setreadonly and function(t) setreadonly(t, true) end) or blankfunction
+local isreadonly = isreadonly or table.isfrozen or blankfunction
+local hookmetamethod = hookmetamethod or blankfunction
+local hookfunction = hookfunction or blankfunction
+local getnamecallmethod = getnamecallmethod or blankfunction
+local checkcaller = checkcaller or function() return false end
+local islclosure = islclosure or is_l_closure or blankfunction
+local getupvalues = getupvalues or (debug and debug.getupvalues) or blankfunction
+local getconstants = getconstants or (debug and debug.getconstants) or blankfunction
+local getinfo = getinfo or blankfunction
+local decompile = decompile or nil
+local getnilinstances = getnilinstances or function() return {} end
+
+local setclipboard = setclipboard or toclipboard or set_clipboard or (Clipboard and Clipboard.set) or function()
+    warn("[Holt Spy] Clipboard not supported on this executor")
+end
+
+local function SafeGetService(s)
+    return cloneref(game:GetService(s))
+end
+
+local RunService    = SafeGetService("RunService")
+local Players       = SafeGetService("Players")
+local UserInputService = SafeGetService("UserInputService")
+local TweenService  = SafeGetService("TweenService")
+local TextService   = SafeGetService("TextService")
+local CoreGui       = SafeGetService("CoreGui")
+local HttpService   = SafeGetService("HttpService")
+local GuiService    = SafeGetService("GuiService")
+local GuiInset      = GuiService:GetGuiInset()
+
+local OldDebugId    = game.GetDebugId
+local info          = debug.info
+local lower         = string.lower
+local running       = coroutine.running
+local resume        = coroutine.resume
+local cstatus       = coroutine.status
+local yield         = coroutine.yield
+local ccreate       = coroutine.create
+local cclose        = coroutine.close
+local spawn         = task.spawn
+local delay         = task.delay
+local tclear        = table.clear
+local tclone        = table.clone
+
+local function deepclone(args, copies)
+    copies = copies or {}
+    if type(args) == "table" then
+        if copies[args] then return copies[args] end
+        local copy = {}
+        copies[args] = copy
+        for k, v in next, args do
+            copy[deepclone(k, copies)] = deepclone(v, copies)
+        end
+        return copy
+    elseif typeof(args) == "Instance" then
+        local ok, ref = pcall(cloneref, args)
+        return ok and ref or args
+    end
+    return args
+end
+
+local function rawtostring(v)
+    if type(v) == "table" or typeof(v) == "userdata" then
+        local mt = getrawmetatable(v)
+        local ts = mt and rawget(mt, "__tostring")
+        if ts then
+            local wasro = isreadonly(mt)
+            if wasro then makewritable(mt) end
+            rawset(mt, "__tostring", nil)
+            local s = tostring(v)
+            rawset(mt, "__tostring", ts)
+            if wasro then makereadonly(mt) end
+            return s
+        end
+    end
+    return tostring(v)
+end
+
+local function IsCyclicTable(tbl, visited)
+    visited = visited or {}
+    if visited[tbl] then return true end
+    visited[tbl] = true
+    for _, v in next, tbl do
+        if type(v) == "table" and IsCyclicTable(v, visited) then return true end
+    end
+    return false
+end
+
+-- ============================================================
+-- HIGHLIGHT AND DATATOCODE (external)
+-- ============================================================
+
+local Highlight = loadstring(game:HttpGet("https://raw.githubusercontent.com/78n/SimpleSpy/main/Highlight.lua"))()
+local LazyFix   = loadstring(game:HttpGet("https://raw.githubusercontent.com/78n/Roblox/refs/heads/main/Lua/Libraries/DataToCode/DataToCode.luau"))()
+
+-- ============================================================
+-- CONFIG
 -- ============================================================
 
 local realconfigs = {
     logcheckcaller = false,
-    autoblock = false,
-    funcEnabled = true,
-    advancedinfo = false,
-    supersecretdevtoggle = false
+    autoblock      = false,
+    funcEnabled    = true,
+    advancedinfo   = false,
 }
 
 local configs = newproxy(true)
-local configsmetatable = getmetatable(configs)
+local configmt = getmetatable(configs)
+configmt.__index    = function(_, k) return realconfigs[k] end
+configmt.__newindex = function(_, k, v) realconfigs[k] = v end
 
-configsmetatable.__index = function(self, index)
-    return realconfigs[index]
-end
+-- ============================================================
+-- THEME
+-- ============================================================
 
-local oth = syn and syn.oth
-local unhook = oth and oth.unhook
-local hook = oth and oth.hook
+local T = {
+    BG          = Color3.fromRGB(15, 15, 20),
+    Surface     = Color3.fromRGB(22, 22, 28),
+    SurfaceL    = Color3.fromRGB(30, 30, 38),
+    SurfaceLL   = Color3.fromRGB(40, 40, 50),
+    TopBar      = Color3.fromRGB(10, 10, 15),
+    Accent      = Color3.fromRGB(90, 70, 200),
+    AccentL     = Color3.fromRGB(120, 100, 240),
+    Text        = Color3.fromRGB(215, 215, 225),
+    TextDim     = Color3.fromRGB(130, 130, 150),
+    TextMuted   = Color3.fromRGB(80, 80, 100),
+    EventCol    = Color3.fromRGB(255, 200, 50),
+    FuncCol     = Color3.fromRGB(100, 140, 255),
+    Error       = Color3.fromRGB(220, 60, 60),
+    Success     = Color3.fromRGB(60, 200, 100),
+    Border      = Color3.fromRGB(45, 45, 60),
+    Scroll      = Color3.fromRGB(55, 55, 75),
+    CtxBG       = Color3.fromRGB(20, 20, 28),
+    CtxHov      = Color3.fromRGB(38, 38, 52),
+}
 
-local lower = string.lower
-local byte = string.byte
-local round = math.round
-local running = coroutine.running
-local resume = coroutine.resume
-local status = coroutine.status
-local yield = coroutine.yield
-local create = coroutine.create
-local close = coroutine.close
-local OldDebugId = game.GetDebugId
-local info = debug.info
+-- ============================================================
+-- DETECT MOBILE
+-- ============================================================
 
-local IsA = game.IsA
-local tostring = tostring
-local tonumber = tonumber
-local delay = task.delay
-local spawn = task.spawn
-local clear = table.clear
-local clone = table.clone
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
-local function blankfunction(...)
-    return ...
-end
+-- ============================================================
+-- CREATE HELPERS
+-- ============================================================
 
-local get_thread_identity = (syn and syn.get_thread_identity) or getidentity or getthreadidentity
-local set_thread_identity = (syn and syn.set_thread_identity) or setidentity
-local islclosure = islclosure or is_l_closure
-local threadfuncs = (get_thread_identity and set_thread_identity and true) or false
-
-local getinfo = getinfo or blankfunction
-local getupvalues = getupvalues or debug.getupvalues or blankfunction
-local getconstants = getconstants or debug.getconstants or blankfunction
-
-local getcustomasset = getsynasset or getcustomasset
-local getcallingscript = getcallingscript or blankfunction
-local newcclosure = newcclosure or blankfunction
-local clonefunction = clonefunction or blankfunction
-local cloneref = cloneref or blankfunction
-local request = request or syn and syn.request
-local makewritable = makewriteable or function(tbl)
-    setreadonly(tbl, false)
-end
-local makereadonly = makereadonly or function(tbl)
-    setreadonly(tbl, true)
-end
-local isreadonly = isreadonly or table.isfrozen
-
-local setclipboard = setclipboard or toclipboard or set_clipboard or (Clipboard and Clipboard.set) or function(...)
-    return ErrorPrompt("Attempted to set clipboard: " .. (...), true)
-end
-
-local hookmetamethod = hookmetamethod or (makewriteable and makereadonly and getrawmetatable) and function(obj, metamethod, func)
-    local old = getrawmetatable(obj)
-    if hookfunction then
-        return hookfunction(old[metamethod], func)
-    else
-        local oldmetamethod = old[metamethod]
-        makewriteable(old)
-        old[metamethod] = func
-        makereadonly(old)
-        return oldmetamethod
+local function New(cls, props, children)
+    local obj = Instance.new(cls)
+    for k, v in next, props or {} do
+        obj[k] = v
     end
-end
-
-local function Create(instance, properties, children)
-    local obj = Instance.new(instance)
-    for i, v in next, properties or {} do
-        obj[i] = v
-    end
-    for _, child in next, children or {} do
-        child.Parent = obj
+    for _, c in next, children or {} do
+        c.Parent = obj
     end
     return obj
 end
 
-local function SafeGetService(service)
-    return cloneref(game:GetService(service))
+local function Corner(r, parent)
+    return New("UICorner", { CornerRadius = UDim.new(0, r or 6), Parent = parent })
 end
 
-local function IsCyclicTable(tbl)
-    local checkedtables = {}
-    local function SearchTable(t)
-        table.insert(checkedtables, t)
-        for i, v in next, t do
-            if type(v) == "table" then
-                return table.find(checkedtables, v) and true or SearchTable(v)
-            end
-        end
-    end
-    return SearchTable(tbl)
+local function Stroke(color, thick, parent)
+    return New("UIStroke", { Color = color, Thickness = thick or 1, Parent = parent })
 end
 
-local function deepclone(args, copies)
-    local copy = nil
-    copies = copies or {}
-    if type(args) == "table" then
-        if copies[args] then
-            copy = copies[args]
-        else
-            copy = {}
-            copies[args] = copy
-            for i, v in next, args do
-                copy[deepclone(i, copies)] = deepclone(v, copies)
-            end
-        end
-    elseif typeof(args) == "Instance" then
-        copy = cloneref(args)
-    else
-        copy = args
-    end
-    return copy
+local function Pad(l, r, t, b, parent)
+    return New("UIPadding", {
+        PaddingLeft   = UDim.new(0, l or 0),
+        PaddingRight  = UDim.new(0, r or 0),
+        PaddingTop    = UDim.new(0, t or 0),
+        PaddingBottom = UDim.new(0, b or 0),
+        Parent        = parent
+    })
 end
-
-local function rawtostring(userdata)
-    if type(userdata) == "table" or typeof(userdata) == "userdata" then
-        local rawmetatable = getrawmetatable(userdata)
-        local cachedstring = rawmetatable and rawget(rawmetatable, "__tostring")
-        if cachedstring then
-            local wasreadonly = isreadonly(rawmetatable)
-            if wasreadonly then
-                makewritable(rawmetatable)
-            end
-            rawset(rawmetatable, "__tostring", nil)
-            local safestring = tostring(userdata)
-            rawset(rawmetatable, "__tostring", cachedstring)
-            if wasreadonly then
-                makereadonly(rawmetatable)
-            end
-            return safestring
-        end
-    end
-    return tostring(userdata)
-end
-
-local CoreGui = SafeGetService("CoreGui")
-local Players = SafeGetService("Players")
-local RunService = SafeGetService("RunService")
-local UserInputService = SafeGetService("UserInputService")
-local TweenService = SafeGetService("TweenService")
-local ContentProvider = SafeGetService("ContentProvider")
-local TextService = SafeGetService("TextService")
-local http = SafeGetService("HttpService")
-local GuiInset = game:GetService("GuiService"):GetGuiInset()
-
-local function jsone(str) return http:JSONEncode(str) end
-local function jsond(str)
-    local suc, err = pcall(http.JSONDecode, http, str)
-    return suc and err or suc
-end
-
-function ErrorPrompt(Message, state)
-    if getrenv then
-        local ErrorPromptModule = getrenv().require(CoreGui:WaitForChild("RobloxGui"):WaitForChild("Modules"):WaitForChild("ErrorPrompt"))
-        local prompt = ErrorPromptModule.new("Default", { HideErrorCode = true })
-        local ErrorStorage = Create("ScreenGui", { Parent = CoreGui, ResetOnSpawn = false })
-        local thread = state and running()
-        prompt:setParent(ErrorStorage)
-        prompt:setErrorTitle("Holt Spy Error")
-        prompt:updateButtons({ {
-            Text = "Proceed",
-            Callback = function()
-                prompt:_close()
-                ErrorStorage:Destroy()
-                if thread then
-                    resume(thread)
-                end
-            end,
-            Primary = true
-        } }, "Default")
-        prompt:_open(Message)
-        if thread then
-            yield(thread)
-        end
-    else
-        warn(Message)
-    end
-end
-
-local Highlight = (isfile and loadfile and isfile("Highlight.lua") and loadfile("Highlight.lua")()) or loadstring(game:HttpGet("https://raw.githubusercontent.com/78n/SimpleSpy/main/Highlight.lua"))()
-local LazyFix = loadstring(game:HttpGet("https://raw.githubusercontent.com/78n/Roblox/refs/heads/main/Lua/Libraries/DataToCode/DataToCode.luau"))()
 
 -- ============================================================
--- CONFIG PERSISTENCE
+-- GUI ROOT
 -- ============================================================
 
-local synv3 = false
-if syn and identifyexecutor then
-    local _, version = identifyexecutor()
-    if version and version:sub(1, 2) == "v3" then
-        synv3 = true
+local Screen = New("ScreenGui", {
+    Name           = "HoltSpy",
+    ResetOnSpawn   = false,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    DisplayOrder   = 999,
+    Enabled        = false,
+})
+
+-- ============================================================
+-- LOADING SCREEN (small corner notification style)
+-- ============================================================
+
+local LoadFrame = New("Frame", {
+    Parent              = Screen,
+    BackgroundColor3    = T.BG,
+    Size                = UDim2.new(0, 200, 0, 70),
+    Position            = UDim2.new(1, -210, 1, -80),
+    BorderSizePixel     = 0,
+    ZIndex              = 9999,
+})
+Corner(8, LoadFrame)
+Stroke(T.Border, 1, LoadFrame)
+
+New("TextLabel", {
+    Parent              = LoadFrame,
+    BackgroundTransparency = 1,
+    Position            = UDim2.new(0, 10, 0, 8),
+    Size                = UDim2.new(1, -20, 0, 22),
+    Font                = Enum.Font.GothamBold,
+    Text                = "Holt Spy",
+    TextColor3          = T.AccentL,
+    TextSize            = 16,
+    TextXAlignment      = Enum.TextXAlignment.Left,
+    ZIndex              = 10000,
+})
+
+New("TextLabel", {
+    Parent              = LoadFrame,
+    BackgroundTransparency = 1,
+    Position            = UDim2.new(0, 10, 0, 30),
+    Size                = UDim2.new(1, -20, 0, 14),
+    Font                = Enum.Font.Gotham,
+    Text                = "by BufferClick",
+    TextColor3          = T.TextMuted,
+    TextSize            = 11,
+    TextXAlignment      = Enum.TextXAlignment.Left,
+    ZIndex              = 10000,
+})
+
+local LoadBar = New("Frame", {
+    Parent           = LoadFrame,
+    BackgroundColor3 = T.SurfaceLL,
+    Position         = UDim2.new(0, 10, 1, -12),
+    Size             = UDim2.new(1, -20, 0, 4),
+    BorderSizePixel  = 0,
+    ZIndex           = 10000,
+})
+Corner(2, LoadBar)
+
+local LoadFill = New("Frame", {
+    Parent           = LoadBar,
+    BackgroundColor3 = T.AccentL,
+    Size             = UDim2.new(0, 0, 1, 0),
+    BorderSizePixel  = 0,
+    ZIndex           = 10001,
+})
+Corner(2, LoadFill)
+
+local LoadStatus = New("TextLabel", {
+    Parent              = LoadFrame,
+    BackgroundTransparency = 1,
+    Position            = UDim2.new(0, 10, 1, -26),
+    Size                = UDim2.new(1, -20, 0, 12),
+    Font                = Enum.Font.Gotham,
+    Text                = "Loading...",
+    TextColor3          = T.TextMuted,
+    TextSize            = 10,
+    TextXAlignment      = Enum.TextXAlignment.Left,
+    ZIndex              = 10000,
+})
+
+local function ShowLoadingScreen()
+    local steps = {
+        {0.2, "Loading modules..."},
+        {0.4, "Building UI..."},
+        {0.6, "Hooking remotes..."},
+        {0.8, "Finalizing..."},
+        {1.0, "Ready!"},
+    }
+    for _, step in ipairs(steps) do
+        TweenService:Create(LoadFill, TweenInfo.new(0.25), {Size = UDim2.new(step[1], 0, 1, 0)}):Play()
+        LoadStatus.Text = step[2]
+        task.wait(0.2)
     end
+    task.wait(0.4)
+    TweenService:Create(LoadFrame, TweenInfo.new(0.4), {Position = UDim2.new(1, 10, 1, -80)}):Play()
+    task.wait(0.5)
+    LoadFrame:Destroy()
 end
 
-xpcall(function()
-    if isfile and readfile and isfolder and makefolder then
-        local cachedconfigs = isfile("HoltSpy//Settings.json") and jsond(readfile("HoltSpy//Settings.json"))
-        if cachedconfigs then
-            for i, v in next, realconfigs do
-                if cachedconfigs[i] == nil then
-                    cachedconfigs[i] = v
-                end
-            end
-            realconfigs = cachedconfigs
-        end
-        if not isfolder("HoltSpy") then
-            makefolder("HoltSpy")
-        end
-        if not isfolder("HoltSpy//Assets") then
-            makefolder("HoltSpy//Assets")
-        end
-        if not isfile("HoltSpy//Settings.json") then
-            writefile("HoltSpy//Settings.json", jsone(realconfigs))
-        end
-        configsmetatable.__newindex = function(self, index, newindex)
-            realconfigs[index] = newindex
-            writefile("HoltSpy//Settings.json", jsone(realconfigs))
-        end
-    else
-        configsmetatable.__newindex = function(self, index, newindex)
-            realconfigs[index] = newindex
-        end
-    end
-end, function(err)
-    ErrorPrompt(("An error has occured: (%s)"):format(err))
+-- ============================================================
+-- MINIMIZED ICON
+-- ============================================================
+
+local MinIcon = New("TextButton", {
+    Parent              = Screen,
+    BackgroundColor3    = T.Accent,
+    Size                = UDim2.new(0, 48, 0, 48),
+    Position            = UDim2.new(0, 10, 0.5, -24),
+    BorderSizePixel     = 0,
+    Font                = Enum.Font.GothamBold,
+    Text                = "HS",
+    TextColor3          = T.Text,
+    TextSize            = 14,
+    AutoButtonColor     = false,
+    ZIndex              = 500,
+    Visible             = false,
+})
+Corner(24, MinIcon)
+Stroke(T.AccentL, 1.5, MinIcon)
+
+MinIcon.MouseEnter:Connect(function()
+    TweenService:Create(MinIcon, TweenInfo.new(0.15), {BackgroundColor3 = T.AccentL}):Play()
+end)
+MinIcon.MouseLeave:Connect(function()
+    TweenService:Create(MinIcon, TweenInfo.new(0.15), {BackgroundColor3 = T.Accent}):Play()
 end)
 
 -- ============================================================
--- THEME AND COLORS
+-- MAIN WINDOW SIZING
 -- ============================================================
 
-local Theme = {
-    Background = Color3.fromRGB(18, 18, 22),
-    Surface = Color3.fromRGB(24, 24, 30),
-    SurfaceLight = Color3.fromRGB(32, 32, 40),
-    SurfaceLighter = Color3.fromRGB(42, 42, 52),
-    TopBar = Color3.fromRGB(14, 14, 18),
-    Accent = Color3.fromRGB(100, 80, 220),
-    AccentLight = Color3.fromRGB(130, 110, 255),
-    AccentDark = Color3.fromRGB(70, 55, 170),
-    Text = Color3.fromRGB(220, 220, 230),
-    TextDim = Color3.fromRGB(140, 140, 160),
-    TextMuted = Color3.fromRGB(90, 90, 110),
-    EventColor = Color3.fromRGB(255, 200, 50),
-    FunctionColor = Color3.fromRGB(100, 140, 255),
-    Error = Color3.fromRGB(220, 60, 60),
-    Success = Color3.fromRGB(60, 200, 100),
-    Warning = Color3.fromRGB(255, 180, 40),
-    Border = Color3.fromRGB(50, 50, 65),
-    ScrollBar = Color3.fromRGB(60, 60, 80),
-    ButtonHover = Color3.fromRGB(50, 50, 65),
-    ContextMenu = Color3.fromRGB(28, 28, 36),
-    ContextMenuHover = Color3.fromRGB(45, 45, 60),
-    ContextMenuBorder = Color3.fromRGB(55, 55, 70),
-}
+local vpSize       = workspace.CurrentCamera.ViewportSize
+local WIN_W        = isMobile and math.clamp(vpSize.X - 20, 260, 340) or 520
+local WIN_H        = isMobile and math.clamp(vpSize.Y * 0.5, 200, 320) or 340
+local LEFT_W       = isMobile and 90 or 140
+local TOPBAR_H     = isMobile and 26 or 28
+local BTN_H        = isMobile and 22 or 24
+local BTN_W        = isMobile and 72 or 92
+local FONT_SM      = isMobile and 10 or 11
+local FONT_MD      = isMobile and 11 or 12
+local FONT_LG      = isMobile and 13 or 14
 
 -- ============================================================
--- LOADING SCREEN
+-- MAIN WINDOW
 -- ============================================================
 
-local function ShowLoadingScreen()
-    local LoadingGui = Create("ScreenGui", {
-        Name = "HoltSpyLoading",
-        ResetOnSpawn = false,
-        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-        DisplayOrder = 999,
-    })
+local Background = New("Frame", {
+    Parent           = Screen,
+    Name             = "Background",
+    BackgroundColor3 = T.BG,
+    BorderSizePixel  = 0,
+    Position         = UDim2.new(0.5, -WIN_W/2, 0.5, -WIN_H/2),
+    Size             = UDim2.new(0, WIN_W, 0, WIN_H),
+    ClipsDescendants = true,
+    ZIndex           = 10,
+})
+Corner(8, Background)
+Stroke(T.Border, 1, Background)
 
-    local LoadingFrame = Create("Frame", {
-        Parent = LoadingGui,
-        BackgroundColor3 = Color3.fromRGB(8, 8, 12),
-        Size = UDim2.new(1, 0, 1, 0),
-        BorderSizePixel = 0,
-    })
+-- TopBar
+local TopBar = New("Frame", {
+    Parent           = Background,
+    BackgroundColor3 = T.TopBar,
+    BorderSizePixel  = 0,
+    Size             = UDim2.new(1, 0, 0, TOPBAR_H),
+    ZIndex           = 20,
+})
+Corner(8, TopBar)
+New("Frame", {
+    Parent           = TopBar,
+    BackgroundColor3 = T.TopBar,
+    BorderSizePixel  = 0,
+    Position         = UDim2.new(0, 0, 1, -8),
+    Size             = UDim2.new(1, 0, 0, 8),
+    ZIndex           = 20,
+})
 
-    Create("UICorner", { Parent = LoadingFrame, CornerRadius = UDim.new(0, 0) })
+local TitleBtn = New("TextButton", {
+    Parent              = TopBar,
+    BackgroundTransparency = 1,
+    Position            = UDim2.new(0, 8, 0, 0),
+    Size                = UDim2.new(0, 80, 1, 0),
+    Font                = Enum.Font.GothamBold,
+    Text                = "Holt Spy",
+    TextColor3          = T.AccentL,
+    TextSize            = FONT_LG,
+    TextXAlignment      = Enum.TextXAlignment.Left,
+    AutoButtonColor     = false,
+    ZIndex              = 21,
+})
 
-    local CenterFrame = Create("Frame", {
-        Parent = LoadingFrame,
+local function WinBtn(icon, xOffset, hoverCol)
+    local b = New("TextButton", {
+        Parent              = TopBar,
         BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.new(0.5, 0, 0.5, 0),
-        Size = UDim2.new(0, 400, 0, 300),
+        AnchorPoint         = Vector2.new(1, 0),
+        Position            = UDim2.new(1, xOffset, 0, 0),
+        Size                = UDim2.new(0, TOPBAR_H, 1, 0),
+        Font                = Enum.Font.GothamBold,
+        Text                = icon,
+        TextColor3          = T.TextDim,
+        TextSize            = FONT_MD,
+        AutoButtonColor     = false,
+        ZIndex              = 21,
     })
-
-    local TitleLabel = Create("TextLabel", {
-        Parent = CenterFrame,
-        BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(0.5, 0),
-        Position = UDim2.new(0.5, 0, 0, 20),
-        Size = UDim2.new(1, 0, 0, 60),
-        Font = Enum.Font.GothamBold,
-        Text = "HOLT SPY",
-        TextColor3 = Theme.AccentLight,
-        TextSize = 48,
-        TextTransparency = 1,
-    })
-
-    local SubtitleLabel = Create("TextLabel", {
-        Parent = CenterFrame,
-        BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(0.5, 0),
-        Position = UDim2.new(0.5, 0, 0, 85),
-        Size = UDim2.new(1, 0, 0, 24),
-        Font = Enum.Font.Gotham,
-        Text = "Advanced Remote Intelligence",
-        TextColor3 = Theme.TextDim,
-        TextSize = 16,
-        TextTransparency = 1,
-    })
-
-    local ByLabel = Create("TextLabel", {
-        Parent = CenterFrame,
-        BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(0.5, 0),
-        Position = UDim2.new(0.5, 0, 0, 130),
-        Size = UDim2.new(1, 0, 0, 20),
-        Font = Enum.Font.Gotham,
-        Text = "made by BufferClick",
-        TextColor3 = Theme.TextMuted,
-        TextSize = 14,
-        TextTransparency = 1,
-    })
-
-    local BarBackground = Create("Frame", {
-        Parent = CenterFrame,
-        BackgroundColor3 = Theme.SurfaceLight,
-        AnchorPoint = Vector2.new(0.5, 0),
-        Position = UDim2.new(0.5, 0, 0, 180),
-        Size = UDim2.new(0.7, 0, 0, 4),
-        BorderSizePixel = 0,
-    })
-    Create("UICorner", { Parent = BarBackground, CornerRadius = UDim.new(0, 2) })
-
-    local BarFill = Create("Frame", {
-        Parent = BarBackground,
-        BackgroundColor3 = Theme.AccentLight,
-        Size = UDim2.new(0, 0, 1, 0),
-        BorderSizePixel = 0,
-    })
-    Create("UICorner", { Parent = BarFill, CornerRadius = UDim.new(0, 2) })
-
-    local StatusLabel = Create("TextLabel", {
-        Parent = CenterFrame,
-        BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(0.5, 0),
-        Position = UDim2.new(0.5, 0, 0, 195),
-        Size = UDim2.new(1, 0, 0, 18),
-        Font = Enum.Font.Gotham,
-        Text = "Initializing...",
-        TextColor3 = Theme.TextMuted,
-        TextSize = 12,
-        TextTransparency = 1,
-    })
-
-    local DiscordLabel = Create("TextLabel", {
-        Parent = CenterFrame,
-        BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(0.5, 1),
-        Position = UDim2.new(0.5, 0, 1, -10),
-        Size = UDim2.new(1, 0, 0, 16),
-        Font = Enum.Font.Gotham,
-        Text = "discord.gg/E7Tfjgruck",
-        TextColor3 = Theme.TextMuted,
-        TextSize = 11,
-        TextTransparency = 1,
-    })
-
-    LoadingGui.Parent = (gethui and gethui()) or CoreGui
-
-    -- Animate in
-    local fadeTime = 0.6
-    TweenService:Create(TitleLabel, TweenInfo.new(fadeTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
-    task.wait(0.15)
-    TweenService:Create(SubtitleLabel, TweenInfo.new(fadeTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
-    task.wait(0.1)
-    TweenService:Create(ByLabel, TweenInfo.new(fadeTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
-    task.wait(0.1)
-    TweenService:Create(StatusLabel, TweenInfo.new(fadeTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
-    TweenService:Create(DiscordLabel, TweenInfo.new(fadeTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
-
-    local loadSteps = {
-        { progress = 0.15, text = "Loading modules..." },
-        { progress = 0.35, text = "Building interface..." },
-        { progress = 0.55, text = "Setting up hooks..." },
-        { progress = 0.75, text = "Configuring handlers..." },
-        { progress = 0.90, text = "Finalizing..." },
-        { progress = 1.00, text = "Ready." },
-    }
-
-    for _, step in ipairs(loadSteps) do
-        TweenService:Create(BarFill, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2.new(step.progress, 0, 1, 0) }):Play()
-        StatusLabel.Text = step.text
-        task.wait(0.3)
-    end
-
-    task.wait(0.5)
-
-    -- Fade out
-    TweenService:Create(LoadingFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { BackgroundTransparency = 1 }):Play()
-    for _, desc in ipairs(CenterFrame:GetDescendants()) do
-        if desc:IsA("TextLabel") then
-            TweenService:Create(desc, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
-        elseif desc:IsA("Frame") then
-            TweenService:Create(desc, TweenInfo.new(0.4), { BackgroundTransparency = 1 }):Play()
-        end
-    end
-    TweenService:Create(BarBackground, TweenInfo.new(0.4), { BackgroundTransparency = 1 }):Play()
-    task.wait(0.5)
-    LoadingGui:Destroy()
+    b.MouseEnter:Connect(function()
+        TweenService:Create(b, TweenInfo.new(0.12), {TextColor3 = hoverCol or T.Text}):Play()
+    end)
+    b.MouseLeave:Connect(function()
+        TweenService:Create(b, TweenInfo.new(0.12), {TextColor3 = T.TextDim}):Play()
+    end)
+    return b
 end
 
--- ============================================================
--- MAIN GUI CONSTRUCTION
--- ============================================================
+local CloseBtn    = WinBtn("X",  0,           T.Error)
+local SideBtn     = WinBtn("+",  -TOPBAR_H,   T.AccentL)
+local MinimizeBtn = WinBtn("-",  -TOPBAR_H*2, T.TextDim)
 
-local Storage = Create("Folder", {})
-
-local HoltSpyGui = Create("ScreenGui", {
-    Name = "HoltSpy",
-    ResetOnSpawn = false,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-    Enabled = false,
-})
-
--- Responsive sizing
-local viewportSize = workspace.CurrentCamera.ViewportSize
-local isMobile = (viewportSize.X < 800 or UserInputService.TouchEnabled)
-local guiWidth = isMobile and math.clamp(viewportSize.X - 40, 320, 500) or 560
-local guiHeight = isMobile and math.clamp(viewportSize.Y - 100, 280, 420) or 380
-local leftPanelWidth = isMobile and 110 or 160
-local topBarHeight = isMobile and 28 or 32
-
-local Background = Create("Frame", {
-    Parent = HoltSpyGui,
-    Name = "Background",
-    BackgroundColor3 = Theme.Background,
-    BackgroundTransparency = 0,
-    Position = UDim2.new(0.5, -guiWidth / 2, 0.5, -guiHeight / 2),
-    Size = UDim2.new(0, guiWidth, 0, guiHeight),
-    BorderSizePixel = 0,
+-- Left Panel
+local LeftPanel = New("Frame", {
+    Parent           = Background,
+    BackgroundColor3 = T.Surface,
+    BorderSizePixel  = 0,
+    Position         = UDim2.new(0, 0, 0, TOPBAR_H),
+    Size             = UDim2.new(0, LEFT_W, 1, -TOPBAR_H),
     ClipsDescendants = true,
+    ZIndex           = 10,
 })
-Create("UICorner", { Parent = Background, CornerRadius = UDim.new(0, 8) })
-Create("UIStroke", { Parent = Background, Color = Theme.Border, Thickness = 1, Transparency = 0.5 })
-
--- Top Bar
-local TopBar = Create("Frame", {
-    Parent = Background,
-    Name = "TopBar",
-    BackgroundColor3 = Theme.TopBar,
-    BorderSizePixel = 0,
-    Size = UDim2.new(1, 0, 0, topBarHeight),
-    ZIndex = 5,
-})
-Create("UICorner", { Parent = TopBar, CornerRadius = UDim.new(0, 8) })
--- Mask bottom corners of topbar
-local TopBarMask = Create("Frame", {
-    Parent = TopBar,
-    BackgroundColor3 = Theme.TopBar,
-    BorderSizePixel = 0,
-    Position = UDim2.new(0, 0, 1, -8),
-    Size = UDim2.new(1, 0, 0, 8),
-    ZIndex = 5,
+New("Frame", {
+    Parent           = LeftPanel,
+    BackgroundColor3 = T.Border,
+    BorderSizePixel  = 0,
+    Position         = UDim2.new(1, -1, 0, 0),
+    Size             = UDim2.new(0, 1, 1, 0),
+    ZIndex           = 11,
 })
 
-local TitleButton = Create("TextButton", {
-    Parent = TopBar,
-    Name = "TitleButton",
+local SearchBar = New("TextBox", {
+    Parent              = LeftPanel,
+    BackgroundColor3    = T.SurfaceLL,
+    BorderSizePixel     = 0,
+    Position            = UDim2.new(0, 4, 0, 4),
+    Size                = UDim2.new(1, -8, 0, isMobile and 20 or 22),
+    Font                = Enum.Font.Gotham,
+    PlaceholderText     = "Search...",
+    PlaceholderColor3   = T.TextMuted,
+    Text                = "",
+    TextColor3          = T.Text,
+    TextSize            = FONT_SM,
+    ClearTextOnFocus    = false,
+    ZIndex              = 12,
+})
+Corner(4, SearchBar)
+Pad(5, 5, 0, 0, SearchBar)
+
+local LogList = New("ScrollingFrame", {
+    Parent                = LeftPanel,
     BackgroundTransparency = 1,
-    Position = UDim2.new(0, 12, 0, 0),
-    Size = UDim2.new(0, 100, 1, 0),
-    Font = Enum.Font.GothamBold,
-    Text = "Holt Spy",
-    TextColor3 = Theme.AccentLight,
-    TextSize = isMobile and 14 or 16,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    AutoButtonColor = false,
-    ZIndex = 6,
+    BorderSizePixel       = 0,
+    Position              = UDim2.new(0, 0, 0, isMobile and 28 or 30),
+    Size                  = UDim2.new(1, 0, 1, -(isMobile and 28 or 30)),
+    CanvasSize            = UDim2.new(0, 0, 0, 0),
+    ScrollBarThickness    = 2,
+    ScrollBarImageColor3  = T.Scroll,
+    AutomaticCanvasSize   = Enum.AutomaticSize.Y,
+    ScrollingDirection    = Enum.ScrollingDirection.Y,
+    ZIndex                = 12,
 })
-
-local VersionLabel = Create("TextLabel", {
-    Parent = TopBar,
-    BackgroundTransparency = 1,
-    Position = UDim2.new(0, 115, 0, 0),
-    Size = UDim2.new(0, 30, 1, 0),
-    Font = Enum.Font.Gotham,
-    Text = "v1",
-    TextColor3 = Theme.TextMuted,
-    TextSize = 10,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 6,
-})
-
--- Window control buttons
-local function CreateWindowButton(name, icon, position, hoverColor)
-    local btn = Create("TextButton", {
-        Parent = TopBar,
-        Name = name,
-        BackgroundColor3 = Theme.TopBar,
-        BackgroundTransparency = 1,
-        Position = position,
-        Size = UDim2.new(0, topBarHeight, 0, topBarHeight),
-        Font = Enum.Font.GothamBold,
-        Text = icon,
-        TextColor3 = Theme.TextDim,
-        TextSize = isMobile and 14 or 16,
-        AutoButtonColor = false,
-        ZIndex = 6,
-    })
-    btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundTransparency = 0, BackgroundColor3 = hoverColor or Theme.ButtonHover }):Play()
-        TweenService:Create(btn, TweenInfo.new(0.15), { TextColor3 = Theme.Text }):Play()
-    end)
-    btn.MouseLeave:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundTransparency = 1 }):Play()
-        TweenService:Create(btn, TweenInfo.new(0.15), { TextColor3 = Theme.TextDim }):Play()
-    end)
-    return btn
-end
-
-local CloseButton = CreateWindowButton("Close", "X", UDim2.new(1, -topBarHeight, 0, 0), Theme.Error)
-local MaximizeButton = CreateWindowButton("Maximize", "+", UDim2.new(1, -topBarHeight * 2, 0, 0))
-local MinimizeButton = CreateWindowButton("Minimize", "-", UDim2.new(1, -topBarHeight * 3, 0, 0))
-
--- Left Panel (Remote List)
-local LeftPanel = Create("Frame", {
-    Parent = Background,
-    Name = "LeftPanel",
-    BackgroundColor3 = Theme.Surface,
-    BorderSizePixel = 0,
-    Position = UDim2.new(0, 0, 0, topBarHeight),
-    Size = UDim2.new(0, leftPanelWidth, 1, -topBarHeight),
-    ClipsDescendants = true,
-})
-
-local LeftPanelDivider = Create("Frame", {
-    Parent = LeftPanel,
-    BackgroundColor3 = Theme.Border,
-    BorderSizePixel = 0,
-    Position = UDim2.new(1, -1, 0, 0),
-    Size = UDim2.new(0, 1, 1, 0),
-    ZIndex = 3,
-})
-
-local SearchBar = Create("TextBox", {
-    Parent = LeftPanel,
-    Name = "SearchBar",
-    BackgroundColor3 = Theme.SurfaceLighter,
-    BorderSizePixel = 0,
-    Position = UDim2.new(0, 6, 0, 6),
-    Size = UDim2.new(1, -13, 0, isMobile and 24 or 26),
-    Font = Enum.Font.Gotham,
-    PlaceholderText = "Search remotes...",
-    PlaceholderColor3 = Theme.TextMuted,
-    Text = "",
-    TextColor3 = Theme.Text,
-    TextSize = isMobile and 11 or 12,
-    ClearTextOnFocus = false,
-    ClipsDescendants = true,
-})
-Create("UICorner", { Parent = SearchBar, CornerRadius = UDim.new(0, 4) })
-Create("UIPadding", { Parent = SearchBar, PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6) })
-
-local LogList = Create("ScrollingFrame", {
-    Parent = LeftPanel,
-    Name = "LogList",
-    Active = true,
-    BackgroundTransparency = 1,
-    BorderSizePixel = 0,
-    Position = UDim2.new(0, 0, 0, (isMobile and 36 or 38)),
-    Size = UDim2.new(1, 0, 1, -(isMobile and 36 or 38)),
-    CanvasSize = UDim2.new(0, 0, 0, 0),
-    ScrollBarThickness = 3,
-    ScrollBarImageColor3 = Theme.ScrollBar,
-    AutomaticCanvasSize = Enum.AutomaticSize.Y,
-    ScrollingDirection = Enum.ScrollingDirection.Y,
-})
-local UIListLayout = Create("UIListLayout", {
-    Parent = LogList,
+New("UIListLayout", {
+    Parent             = LogList,
     HorizontalAlignment = Enum.HorizontalAlignment.Center,
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    Padding = UDim.new(0, 2),
+    SortOrder          = Enum.SortOrder.LayoutOrder,
+    Padding            = UDim.new(0, 2),
 })
+Pad(2, 2, 2, 2, LogList)
 
 -- Right Panel
-local RightPanel = Create("Frame", {
-    Parent = Background,
-    Name = "RightPanel",
-    BackgroundColor3 = Theme.Background,
-    BorderSizePixel = 0,
-    Position = UDim2.new(0, leftPanelWidth, 0, topBarHeight),
-    Size = UDim2.new(1, -leftPanelWidth, 1, -topBarHeight),
+local RightPanel = New("Frame", {
+    Parent           = Background,
+    BackgroundColor3 = T.BG,
+    BorderSizePixel  = 0,
+    Position         = UDim2.new(0, LEFT_W, 0, TOPBAR_H),
+    Size             = UDim2.new(1, -LEFT_W, 1, -TOPBAR_H),
     ClipsDescendants = true,
+    ZIndex           = 10,
+    Visible          = false,
 })
 
--- Code Box
-local CodeBox = Create("Frame", {
-    Parent = RightPanel,
-    Name = "CodeBox",
-    BackgroundColor3 = Theme.Surface,
-    BorderSizePixel = 0,
-    Position = UDim2.new(0, 0, 0, 0),
-    Size = UDim2.new(1, 0, 0.55, 0),
+-- Code display area (top 60%)
+local CodeFrame = New("Frame", {
+    Parent           = RightPanel,
+    BackgroundColor3 = T.Surface,
+    BorderSizePixel  = 0,
+    Position         = UDim2.new(0, 0, 0, 0),
+    Size             = UDim2.new(1, 0, 0.58, 0),
     ClipsDescendants = true,
-})
-Create("UICorner", { Parent = CodeBox, CornerRadius = UDim.new(0, 0) })
-
--- Divider between code box and button area
-local CodeDivider = Create("Frame", {
-    Parent = RightPanel,
-    BackgroundColor3 = Theme.Border,
-    BorderSizePixel = 0,
-    Position = UDim2.new(0, 0, 0.55, 0),
-    Size = UDim2.new(1, 0, 0, 1),
-    ZIndex = 3,
+    ZIndex           = 11,
 })
 
--- Button Grid Area
-local ButtonArea = Create("Frame", {
-    Parent = RightPanel,
-    Name = "ButtonArea",
-    BackgroundColor3 = Theme.Surface,
-    BorderSizePixel = 0,
-    Position = UDim2.new(0, 0, 0.55, 1),
-    Size = UDim2.new(1, 0, 0.45, -1),
-    ClipsDescendants = true,
+New("Frame", {
+    Parent           = RightPanel,
+    BackgroundColor3 = T.Border,
+    BorderSizePixel  = 0,
+    Position         = UDim2.new(0, 0, 0.58, 0),
+    Size             = UDim2.new(1, 0, 0, 1),
+    ZIndex           = 12,
 })
 
-local ScrollingFrame = Create("ScrollingFrame", {
-    Parent = ButtonArea,
-    Active = true,
+-- Button grid (bottom 42%)
+local BtnScroll = New("ScrollingFrame", {
+    Parent               = RightPanel,
     BackgroundTransparency = 1,
-    Position = UDim2.new(0, 4, 0, 4),
-    Size = UDim2.new(1, -8, 1, -8),
-    CanvasSize = UDim2.new(0, 0, 0, 0),
-    ScrollBarThickness = 3,
-    ScrollBarImageColor3 = Theme.ScrollBar,
-    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    BorderSizePixel      = 0,
+    Position             = UDim2.new(0, 3, 0.58, 4),
+    Size                 = UDim2.new(1, -6, 0.42, -8),
+    CanvasSize           = UDim2.new(0, 0, 0, 0),
+    ScrollBarThickness   = 2,
+    ScrollBarImageColor3 = T.Scroll,
+    AutomaticCanvasSize  = Enum.AutomaticSize.Y,
+    ZIndex               = 12,
 })
-local UIGridLayout = Create("UIGridLayout", {
-    Parent = ScrollingFrame,
+local BtnGrid = New("UIGridLayout", {
+    Parent             = BtnScroll,
     HorizontalAlignment = Enum.HorizontalAlignment.Left,
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    CellPadding = UDim2.new(0, 4, 0, 4),
-    CellSize = UDim2.new(0, isMobile and 80 or 100, 0, isMobile and 26 or 28),
-    FillDirection = Enum.FillDirection.Horizontal,
+    SortOrder          = Enum.SortOrder.LayoutOrder,
+    CellPadding        = UDim2.new(0, 3, 0, 3),
+    CellSize           = UDim2.new(0, BTN_W, 0, BTN_H),
+    FillDirection      = Enum.FillDirection.Horizontal,
 })
+Pad(2, 2, 2, 2, BtnScroll)
 
--- ToolTip
-local ToolTip = Create("Frame", {
-    Parent = HoltSpyGui,
-    Name = "ToolTip",
-    BackgroundColor3 = Theme.ContextMenu,
-    BackgroundTransparency = 0.05,
-    BorderSizePixel = 0,
-    Size = UDim2.new(0, 200, 0, 50),
-    ZIndex = 100,
-    Visible = false,
+-- Tooltip
+local ToolTip = New("Frame", {
+    Parent           = Screen,
+    BackgroundColor3 = T.CtxBG,
+    BorderSizePixel  = 0,
+    Size             = UDim2.new(0, 180, 0, 30),
+    ZIndex           = 800,
+    Visible          = false,
 })
-Create("UICorner", { Parent = ToolTip, CornerRadius = UDim.new(0, 4) })
-Create("UIStroke", { Parent = ToolTip, Color = Theme.ContextMenuBorder, Thickness = 1 })
-
-local ToolTipText = Create("TextLabel", {
-    Parent = ToolTip,
+Corner(4, ToolTip)
+Stroke(T.Border, 1, ToolTip)
+local ToolTipLabel = New("TextLabel", {
+    Parent              = ToolTip,
     BackgroundTransparency = 1,
-    Position = UDim2.new(0, 6, 0, 4),
-    Size = UDim2.new(1, -12, 1, -8),
-    ZIndex = 101,
-    Font = Enum.Font.Gotham,
-    Text = "",
-    TextColor3 = Theme.Text,
-    TextSize = 12,
-    TextWrapped = true,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    TextYAlignment = Enum.TextYAlignment.Top,
+    Position            = UDim2.new(0, 6, 0, 4),
+    Size                = UDim2.new(1, -12, 1, -8),
+    Font                = Enum.Font.Gotham,
+    Text                = "",
+    TextColor3          = T.Text,
+    TextSize            = 11,
+    TextWrapped         = true,
+    TextXAlignment      = Enum.TextXAlignment.Left,
+    TextYAlignment      = Enum.TextYAlignment.Top,
+    ZIndex              = 801,
 })
 
--- ============================================================
--- CONTEXT MENU (shown when clicking a remote in the log list)
--- ============================================================
-
-local ContextMenu = Create("Frame", {
-    Parent = HoltSpyGui,
-    Name = "ContextMenu",
-    BackgroundColor3 = Theme.ContextMenu,
-    BorderSizePixel = 0,
-    Size = UDim2.new(0, isMobile and 180 or 220, 0, 10),
-    Visible = false,
-    ZIndex = 200,
+-- Context Menu
+local CtxMenu = New("Frame", {
+    Parent           = Screen,
+    BackgroundColor3 = T.CtxBG,
+    BorderSizePixel  = 0,
+    Size             = UDim2.new(0, isMobile and 170 or 200, 0, 10),
+    Visible          = false,
+    ZIndex           = 600,
     ClipsDescendants = true,
 })
-Create("UICorner", { Parent = ContextMenu, CornerRadius = UDim.new(0, 6) })
-Create("UIStroke", { Parent = ContextMenu, Color = Theme.ContextMenuBorder, Thickness = 1 })
+Corner(6, CtxMenu)
+Stroke(T.Border, 1, CtxMenu)
 
-local ContextMenuList = Create("ScrollingFrame", {
-    Parent = ContextMenu,
+local CtxList = New("ScrollingFrame", {
+    Parent               = CtxMenu,
     BackgroundTransparency = 1,
-    Position = UDim2.new(0, 0, 0, 0),
-    Size = UDim2.new(1, 0, 1, 0),
-    CanvasSize = UDim2.new(0, 0, 0, 0),
-    ScrollBarThickness = 2,
-    ScrollBarImageColor3 = Theme.ScrollBar,
-    AutomaticCanvasSize = Enum.AutomaticSize.Y,
-    BorderSizePixel = 0,
-    ZIndex = 201,
+    BorderSizePixel      = 0,
+    Size                 = UDim2.new(1, 0, 1, 0),
+    CanvasSize           = UDim2.new(0, 0, 0, 0),
+    ScrollBarThickness   = 2,
+    ScrollBarImageColor3 = T.Scroll,
+    AutomaticCanvasSize  = Enum.AutomaticSize.Y,
+    ZIndex               = 601,
 })
-local ContextMenuLayout = Create("UIListLayout", {
-    Parent = ContextMenuList,
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    Padding = UDim.new(0, 1),
-})
-Create("UIPadding", { Parent = ContextMenuList, PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 4) })
+New("UIListLayout", {Parent = CtxList, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 1)})
+Pad(0, 0, 3, 3, CtxList)
 
--- Edit Code Panel (shown when "Edit Code" is selected)
-local EditCodePanel = Create("Frame", {
-    Parent = HoltSpyGui,
-    Name = "EditCodePanel",
-    BackgroundColor3 = Theme.Background,
-    BorderSizePixel = 0,
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.new(0.5, 0, 0.5, 0),
-    Size = UDim2.new(0, isMobile and (guiWidth - 20) or 500, 0, isMobile and 300 or 350),
-    Visible = false,
-    ZIndex = 300,
+-- Edit Code Panel
+local EditPanel = New("Frame", {
+    Parent           = Screen,
+    BackgroundColor3 = T.BG,
+    BorderSizePixel  = 0,
+    AnchorPoint      = Vector2.new(0.5, 0.5),
+    Position         = UDim2.new(0.5, 0, 0.5, 0),
+    Size             = UDim2.new(0, isMobile and 290 or 420, 0, isMobile and 250 or 300),
+    Visible          = false,
+    ZIndex           = 700,
 })
-Create("UICorner", { Parent = EditCodePanel, CornerRadius = UDim.new(0, 8) })
-Create("UIStroke", { Parent = EditCodePanel, Color = Theme.Border, Thickness = 1 })
+Corner(8, EditPanel)
+Stroke(T.Border, 1, EditPanel)
 
-local EditCodeTopBar = Create("Frame", {
-    Parent = EditCodePanel,
-    BackgroundColor3 = Theme.TopBar,
-    BorderSizePixel = 0,
-    Size = UDim2.new(1, 0, 0, 30),
-    ZIndex = 301,
+local EditTopBar = New("Frame", {
+    Parent           = EditPanel,
+    BackgroundColor3 = T.TopBar,
+    BorderSizePixel  = 0,
+    Size             = UDim2.new(1, 0, 0, 28),
+    ZIndex           = 701,
 })
-Create("UICorner", { Parent = EditCodeTopBar, CornerRadius = UDim.new(0, 8) })
-local EditCodeTopBarMask = Create("Frame", {
-    Parent = EditCodeTopBar,
-    BackgroundColor3 = Theme.TopBar,
-    BorderSizePixel = 0,
-    Position = UDim2.new(0, 0, 1, -8),
-    Size = UDim2.new(1, 0, 0, 8),
-    ZIndex = 301,
+Corner(8, EditTopBar)
+New("Frame", {
+    Parent           = EditTopBar,
+    BackgroundColor3 = T.TopBar,
+    BorderSizePixel  = 0,
+    Position         = UDim2.new(0, 0, 1, -6),
+    Size             = UDim2.new(1, 0, 0, 6),
+    ZIndex           = 701,
 })
-
-Create("TextLabel", {
-    Parent = EditCodeTopBar,
+New("TextLabel", {
+    Parent              = EditTopBar,
     BackgroundTransparency = 1,
-    Position = UDim2.new(0, 10, 0, 0),
-    Size = UDim2.new(0.7, 0, 1, 0),
-    Font = Enum.Font.GothamBold,
-    Text = "Edit Code",
-    TextColor3 = Theme.AccentLight,
-    TextSize = 14,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 302,
+    Position            = UDim2.new(0, 10, 0, 0),
+    Size                = UDim2.new(0.7, 0, 1, 0),
+    Font                = Enum.Font.GothamBold,
+    Text                = "Edit Code",
+    TextColor3          = T.AccentL,
+    TextSize            = FONT_LG,
+    TextXAlignment      = Enum.TextXAlignment.Left,
+    ZIndex              = 702,
 })
-
-local EditCodeCloseBtn = Create("TextButton", {
-    Parent = EditCodeTopBar,
+local EditCloseBtn = New("TextButton", {
+    Parent              = EditTopBar,
     BackgroundTransparency = 1,
-    Position = UDim2.new(1, -30, 0, 0),
-    Size = UDim2.new(0, 30, 0, 30),
-    Font = Enum.Font.GothamBold,
-    Text = "X",
-    TextColor3 = Theme.TextDim,
-    TextSize = 14,
-    AutoButtonColor = false,
-    ZIndex = 302,
+    AnchorPoint         = Vector2.new(1, 0),
+    Position            = UDim2.new(1, 0, 0, 0),
+    Size                = UDim2.new(0, 28, 1, 0),
+    Font                = Enum.Font.GothamBold,
+    Text                = "X",
+    TextColor3          = T.TextDim,
+    TextSize            = FONT_MD,
+    AutoButtonColor     = false,
+    ZIndex              = 702,
 })
 
-local EditCodeInput = Create("TextBox", {
-    Parent = EditCodePanel,
-    BackgroundColor3 = Theme.Surface,
-    BorderSizePixel = 0,
-    Position = UDim2.new(0, 6, 0, 36),
-    Size = UDim2.new(1, -12, 1, -80),
-    Font = Enum.Font.Code,
-    Text = "",
-    TextColor3 = Theme.Text,
-    TextSize = 12,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    TextYAlignment = Enum.TextYAlignment.Top,
-    ClearTextOnFocus = false,
-    MultiLine = true,
-    TextWrapped = true,
-    ZIndex = 302,
-    ClipsDescendants = true,
+local EditInput = New("TextBox", {
+    Parent              = EditPanel,
+    BackgroundColor3    = T.Surface,
+    BorderSizePixel     = 0,
+    Position            = UDim2.new(0, 6, 0, 34),
+    Size                = UDim2.new(1, -12, 1, -74),
+    Font                = Enum.Font.Code,
+    Text                = "",
+    TextColor3          = T.Text,
+    TextSize            = FONT_SM,
+    TextXAlignment      = Enum.TextXAlignment.Left,
+    TextYAlignment      = Enum.TextYAlignment.Top,
+    ClearTextOnFocus    = false,
+    MultiLine           = true,
+    TextWrapped         = true,
+    ZIndex              = 702,
+    ClipsDescendants    = true,
 })
-Create("UICorner", { Parent = EditCodeInput, CornerRadius = UDim.new(0, 4) })
-Create("UIPadding", { Parent = EditCodeInput, PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 4) })
+Corner(4, EditInput)
+Pad(6, 6, 4, 4, EditInput)
 
-local EditCodeSaveBtn = Create("TextButton", {
-    Parent = EditCodePanel,
-    BackgroundColor3 = Theme.Accent,
-    BorderSizePixel = 0,
-    AnchorPoint = Vector2.new(0.5, 1),
-    Position = UDim2.new(0.5, 0, 1, -8),
-    Size = UDim2.new(0, 120, 0, 30),
-    Font = Enum.Font.GothamBold,
-    Text = "Save to Modified",
-    TextColor3 = Theme.Text,
-    TextSize = 13,
-    AutoButtonColor = false,
-    ZIndex = 302,
+local EditSaveBtn = New("TextButton", {
+    Parent              = EditPanel,
+    BackgroundColor3    = T.Accent,
+    BorderSizePixel     = 0,
+    AnchorPoint         = Vector2.new(0.5, 1),
+    Position            = UDim2.new(0.5, 0, 1, -8),
+    Size                = UDim2.new(0, 110, 0, 26),
+    Font                = Enum.Font.GothamBold,
+    Text                = "Save to Modified",
+    TextColor3          = T.Text,
+    TextSize            = FONT_SM,
+    AutoButtonColor     = false,
+    ZIndex              = 702,
 })
-Create("UICorner", { Parent = EditCodeSaveBtn, CornerRadius = UDim.new(0, 4) })
+Corner(4, EditSaveBtn)
 
--- Modified Code Panel (shows all modified scripts)
-local ModifiedPanel = Create("Frame", {
-    Parent = HoltSpyGui,
-    Name = "ModifiedPanel",
-    BackgroundColor3 = Theme.Background,
-    BorderSizePixel = 0,
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.new(0.5, 0, 0.5, 0),
-    Size = UDim2.new(0, isMobile and (guiWidth - 20) or 500, 0, isMobile and 300 or 380),
-    Visible = false,
-    ZIndex = 300,
+-- Modified Panel
+local ModPanel = New("Frame", {
+    Parent           = Screen,
+    BackgroundColor3 = T.BG,
+    BorderSizePixel  = 0,
+    AnchorPoint      = Vector2.new(0.5, 0.5),
+    Position         = UDim2.new(0.5, 0, 0.5, 0),
+    Size             = UDim2.new(0, isMobile and 290 or 420, 0, isMobile and 250 or 300),
+    Visible          = false,
+    ZIndex           = 700,
 })
-Create("UICorner", { Parent = ModifiedPanel, CornerRadius = UDim.new(0, 8) })
-Create("UIStroke", { Parent = ModifiedPanel, Color = Theme.Border, Thickness = 1 })
+Corner(8, ModPanel)
+Stroke(T.Border, 1, ModPanel)
 
-local ModifiedTopBar = Create("Frame", {
-    Parent = ModifiedPanel,
-    BackgroundColor3 = Theme.TopBar,
-    BorderSizePixel = 0,
-    Size = UDim2.new(1, 0, 0, 30),
-    ZIndex = 301,
+local ModTopBar = New("Frame", {
+    Parent           = ModPanel,
+    BackgroundColor3 = T.TopBar,
+    BorderSizePixel  = 0,
+    Size             = UDim2.new(1, 0, 0, 28),
+    ZIndex           = 701,
 })
-Create("UICorner", { Parent = ModifiedTopBar, CornerRadius = UDim.new(0, 8) })
-Create("Frame", {
-    Parent = ModifiedTopBar,
-    BackgroundColor3 = Theme.TopBar,
-    BorderSizePixel = 0,
-    Position = UDim2.new(0, 0, 1, -8),
-    Size = UDim2.new(1, 0, 0, 8),
-    ZIndex = 301,
+Corner(8, ModTopBar)
+New("Frame", {
+    Parent           = ModTopBar,
+    BackgroundColor3 = T.TopBar,
+    BorderSizePixel  = 0,
+    Position         = UDim2.new(0, 0, 1, -6),
+    Size             = UDim2.new(1, 0, 0, 6),
+    ZIndex           = 701,
 })
-
-Create("TextLabel", {
-    Parent = ModifiedTopBar,
+New("TextLabel", {
+    Parent              = ModTopBar,
     BackgroundTransparency = 1,
-    Position = UDim2.new(0, 10, 0, 0),
-    Size = UDim2.new(0.7, 0, 1, 0),
-    Font = Enum.Font.GothamBold,
-    Text = "Modified Code",
-    TextColor3 = Theme.AccentLight,
-    TextSize = 14,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 302,
+    Position            = UDim2.new(0, 10, 0, 0),
+    Size                = UDim2.new(0.7, 0, 1, 0),
+    Font                = Enum.Font.GothamBold,
+    Text                = "Modified Code",
+    TextColor3          = T.AccentL,
+    TextSize            = FONT_LG,
+    TextXAlignment      = Enum.TextXAlignment.Left,
+    ZIndex              = 702,
 })
-
-local ModifiedCloseBtn = Create("TextButton", {
-    Parent = ModifiedTopBar,
+local ModCloseBtn = New("TextButton", {
+    Parent              = ModTopBar,
     BackgroundTransparency = 1,
-    Position = UDim2.new(1, -30, 0, 0),
-    Size = UDim2.new(0, 30, 0, 30),
-    Font = Enum.Font.GothamBold,
-    Text = "X",
-    TextColor3 = Theme.TextDim,
-    TextSize = 14,
-    AutoButtonColor = false,
-    ZIndex = 302,
+    AnchorPoint         = Vector2.new(1, 0),
+    Position            = UDim2.new(1, 0, 0, 0),
+    Size                = UDim2.new(0, 28, 1, 0),
+    Font                = Enum.Font.GothamBold,
+    Text                = "X",
+    TextColor3          = T.TextDim,
+    TextSize            = FONT_MD,
+    AutoButtonColor     = false,
+    ZIndex              = 702,
 })
-
-local ModifiedList = Create("ScrollingFrame", {
-    Parent = ModifiedPanel,
+local ModList = New("ScrollingFrame", {
+    Parent               = ModPanel,
     BackgroundTransparency = 1,
-    Position = UDim2.new(0, 6, 0, 36),
-    Size = UDim2.new(1, -12, 1, -42),
-    CanvasSize = UDim2.new(0, 0, 0, 0),
-    ScrollBarThickness = 3,
-    ScrollBarImageColor3 = Theme.ScrollBar,
-    AutomaticCanvasSize = Enum.AutomaticSize.Y,
-    BorderSizePixel = 0,
-    ZIndex = 302,
+    BorderSizePixel      = 0,
+    Position             = UDim2.new(0, 6, 0, 34),
+    Size                 = UDim2.new(1, -12, 1, -40),
+    CanvasSize           = UDim2.new(0, 0, 0, 0),
+    ScrollBarThickness   = 2,
+    ScrollBarImageColor3 = T.Scroll,
+    AutomaticCanvasSize  = Enum.AutomaticSize.Y,
+    BorderSizePixel      = 0,
+    ZIndex               = 702,
 })
-local ModifiedListLayout = Create("UIListLayout", {
-    Parent = ModifiedList,
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    Padding = UDim.new(0, 3),
-})
+New("UIListLayout", {Parent = ModList, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 3)})
 
--- Overlay for dimming background when panels are open
-local Overlay = Create("TextButton", {
-    Parent = HoltSpyGui,
-    Name = "Overlay",
-    BackgroundColor3 = Color3.new(0, 0, 0),
+-- Dim overlay for panels
+local Overlay = New("TextButton", {
+    Parent              = Screen,
+    BackgroundColor3    = Color3.new(0, 0, 0),
     BackgroundTransparency = 1,
-    Size = UDim2.new(1, 0, 1, 0),
-    Text = "",
-    AutoButtonColor = false,
-    Visible = false,
-    ZIndex = 199,
-    BorderSizePixel = 0,
+    Size                = UDim2.new(1, 0, 1, 0),
+    Text                = "",
+    AutoButtonColor     = false,
+    Visible             = false,
+    ZIndex              = 599,
+    BorderSizePixel     = 0,
 })
 
 -- ============================================================
--- STATE VARIABLES
+-- STATE
 -- ============================================================
 
-local selectedColor = Theme.AccentLight
-local deselectedColor = Theme.TextDim
-local layoutOrderNum = 999999999
-local mainClosing = false
-local closed = false
-local sideClosing = false
-local sideClosed = false
-local maximized = false
-local logs = {}
-local selected = nil
-local blacklist = {}
-local blocklist = {}
-local getNil = false
-local connectedRemotes = {}
-local toggle = false
-local prevTables = {}
-local remoteLogs = {}
-getgenv().HOLTSPYCONFIG_MaxRemotes = 500
-local indent = 4
-local scheduled = {}
-local schedulerconnect
-local HoltSpy = {}
-local topstr = ""
-local bottomstr = ""
-local remotesFadeIn
-local rightFadeIn
-local codebox
-local p
-local getnilrequired = false
-
-local history = {}
-local excluding = {}
-local mouseInGui = false
-local connections = {}
-local DecompiledScripts = {}
-local generation = {}
+local layoutOrder    = 999999999
+local logs           = {}
+local selected       = nil
+local blacklist      = {}
+local blocklist      = {}
+local remoteLogs     = {}
+local scheduled      = {}
+local schedulerConn  = nil
+local connections    = {}
 local running_threads = {}
-local originalnamecall
+local activeLoops    = {}
+local modifiedCodes  = {}
+local history        = {}
+local excluding      = {}
+local ctxVisible     = false
+local sideClosed     = true
+local minimized      = false
+local codebox        = nil
 
-local modifiedCodes = {} -- stores all modified code entries
-local activeLoops = {} -- stores active looped remote calls
-local contextMenuVisible = false
+local DecompiledScripts = {}
+local generation        = {}
+local getnilrequired    = false
+local topstr            = ""
+local bottomstr         = ""
+local indent            = 4
 
-local remoteEvent = Instance.new("RemoteEvent", Storage)
-local unreliableRemoteEvent = Instance.new("UnreliableRemoteEvent")
-local remoteFunction = Instance.new("RemoteFunction", Storage)
-local NamecallHandler = Instance.new("BindableEvent", Storage)
-local IndexHandler = Instance.new("BindableEvent", Storage)
-local GetDebugIdHandler = Instance.new("BindableFunction", Storage)
+getgenv().HOLTSPY_MaxRemotes = 500
 
-local originalEvent = remoteEvent.FireServer
-local originalUnreliableEvent = unreliableRemoteEvent.FireServer
-local originalFunction = remoteFunction.InvokeServer
-local GetDebugIDInvoke = GetDebugIdHandler.Invoke
+-- Original references (filled after hooks set up)
+local Storage              = New("Folder", {})
+local _remoteEvent         = New("RemoteEvent",        {Parent = Storage})
+local _unreliableEvent     = New("UnreliableRemoteEvent", {})
+local _remoteFunction      = New("RemoteFunction",     {Parent = Storage})
+local GetDebugIdBF         = New("BindableFunction",   {Parent = Storage})
+local originalEvent        = _remoteEvent.FireServer
+local originalUnreliable   = _unreliableEvent.FireServer
+local originalFunction     = _remoteFunction.InvokeServer
+local originalNamecall     = nil
+local toggle               = false
 
-function GetDebugIdHandler.OnInvoke(obj)
+GetDebugIdBF.OnInvoke = function(obj)
     return OldDebugId(obj)
 end
 
-local function ThreadGetDebugId(obj)
-    return GetDebugIDInvoke(GetDebugIdHandler, obj)
+local function SafeDebugId(obj)
+    local ok, id = pcall(function()
+        return GetDebugIdBF:Invoke(obj)
+    end)
+    if ok and id then return id end
+    local ok2, id2 = pcall(OldDebugId, obj)
+    if ok2 then return id2 end
+    return tostring(obj)
 end
 
-local function ThreadIsNotDead(thread)
-    return not (status(thread) == "dead")
-end
-
-local function logthread(thread)
-    table.insert(running_threads, thread)
+local function logThread(t)
+    table.insert(running_threads, t)
 end
 
 -- ============================================================
--- CONTEXT MENU SYSTEM
+-- TOOLTIP
 -- ============================================================
 
-local function HideContextMenu()
-    contextMenuVisible = false
-    ContextMenu.Visible = false
-    for _, child in ipairs(ContextMenuList:GetChildren()) do
-        if not child:IsA("UIListLayout") and not child:IsA("UIPadding") then
-            child:Destroy()
+local tipConn = nil
+
+local function ShowTip(text)
+    if tipConn then tipConn:Disconnect() tipConn = nil end
+    ToolTipLabel.Text = text
+    local textSize = TextService:GetTextSize(text, 11, Enum.Font.Gotham, Vector2.new(168, math.huge))
+    ToolTip.Size = UDim2.new(0, textSize.X + 14, 0, textSize.Y + 10)
+    ToolTip.Visible = true
+    tipConn = RunService.RenderStepped:Connect(function()
+        local mp = UserInputService:GetMouseLocation()
+        local tp = mp + Vector2.new(14, -ToolTip.AbsoluteSize.Y - 4)
+        local vp = workspace.CurrentCamera.ViewportSize
+        if tp.X + ToolTip.AbsoluteSize.X > vp.X then tp = Vector2.new(vp.X - ToolTip.AbsoluteSize.X - 4, tp.Y) end
+        if tp.Y < 0 then tp = Vector2.new(tp.X, mp.Y + 16) end
+        ToolTip.Position = UDim2.fromOffset(tp.X, tp.Y)
+    end)
+end
+
+local function HideTip()
+    if tipConn then tipConn:Disconnect() tipConn = nil end
+    ToolTip.Visible = false
+end
+
+-- ============================================================
+-- OVERLAY HELPERS
+-- ============================================================
+
+local function ShowOverlay()
+    Overlay.Visible = true
+    TweenService:Create(Overlay, TweenInfo.new(0.2), {BackgroundTransparency = 0.55}):Play()
+end
+
+local function HideOverlay()
+    TweenService:Create(Overlay, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
+    task.delay(0.2, function() Overlay.Visible = false end)
+end
+
+-- ============================================================
+-- CONTEXT MENU
+-- ============================================================
+
+local function HideCtx()
+    ctxVisible = false
+    CtxMenu.Visible = false
+    for _, c in ipairs(CtxList:GetChildren()) do
+        if not c:IsA("UIListLayout") and not c:IsA("UIPadding") then
+            c:Destroy()
         end
     end
 end
 
-local function CreateContextMenuItem(text, order, callback)
-    local btn = Create("TextButton", {
-        Parent = ContextMenuList,
-        BackgroundColor3 = Theme.ContextMenu,
-        BackgroundTransparency = 0,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 0, isMobile and 28 or 26),
-        Font = Enum.Font.Gotham,
-        Text = "  " .. text,
-        TextColor3 = Theme.Text,
-        TextSize = isMobile and 12 or 12,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        AutoButtonColor = false,
-        LayoutOrder = order,
-        ZIndex = 202,
+local function CtxItem(label, order, cb, color)
+    local btn = New("TextButton", {
+        Parent              = CtxList,
+        BackgroundColor3    = T.CtxBG,
+        BorderSizePixel     = 0,
+        Size                = UDim2.new(1, 0, 0, isMobile and 26 or 24),
+        Font                = Enum.Font.Gotham,
+        Text                = "   " .. label,
+        TextColor3          = color or T.Text,
+        TextSize            = FONT_SM,
+        TextXAlignment      = Enum.TextXAlignment.Left,
+        AutoButtonColor     = false,
+        LayoutOrder         = order,
+        ZIndex              = 602,
     })
     btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.1), { BackgroundColor3 = Theme.ContextMenuHover }):Play()
+        TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = T.CtxHov}):Play()
     end)
     btn.MouseLeave:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.1), { BackgroundColor3 = Theme.ContextMenu }):Play()
+        TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = T.CtxBG}):Play()
     end)
     btn.MouseButton1Click:Connect(function()
-        HideContextMenu()
-        if callback then
-            callback()
-        end
+        HideCtx()
+        if cb then task.defer(cb) end
     end)
     return btn
 end
 
-local function CreateContextMenuSeparator(order)
-    local sep = Create("Frame", {
-        Parent = ContextMenuList,
-        BackgroundColor3 = Theme.Border,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, -12, 0, 1),
-        LayoutOrder = order,
-        ZIndex = 202,
+local function CtxSep(order)
+    New("Frame", {
+        Parent           = CtxList,
+        BackgroundColor3 = T.Border,
+        BorderSizePixel  = 0,
+        Size             = UDim2.new(1, -8, 0, 1),
+        LayoutOrder      = order,
+        ZIndex           = 602,
     })
-    return sep
 end
 
-local function CreateContextMenuToggle(text, order, initialState, callback)
-    local state = initialState
-    local btn = Create("TextButton", {
-        Parent = ContextMenuList,
-        BackgroundColor3 = Theme.ContextMenu,
-        BackgroundTransparency = 0,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 0, isMobile and 28 or 26),
-        Font = Enum.Font.Gotham,
-        Text = "  " .. text .. (state and " [ON]" or " [OFF]"),
-        TextColor3 = state and Theme.Success or Theme.TextDim,
-        TextSize = isMobile and 12 or 12,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        AutoButtonColor = false,
-        LayoutOrder = order,
-        ZIndex = 202,
+local function CtxToggle(label, order, initState, cb)
+    local state = initState
+    local btn
+    local function UpdateText()
+        btn.Text = "   " .. label .. (state and "  [ON]" or "  [OFF]")
+        btn.TextColor3 = state and T.Success or T.TextDim
+    end
+    btn = New("TextButton", {
+        Parent              = CtxList,
+        BackgroundColor3    = T.CtxBG,
+        BorderSizePixel     = 0,
+        Size                = UDim2.new(1, 0, 0, isMobile and 26 or 24),
+        Font                = Enum.Font.Gotham,
+        Text                = "",
+        TextSize            = FONT_SM,
+        TextXAlignment      = Enum.TextXAlignment.Left,
+        AutoButtonColor     = false,
+        LayoutOrder         = order,
+        ZIndex              = 602,
     })
+    UpdateText()
     btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.1), { BackgroundColor3 = Theme.ContextMenuHover }):Play()
+        TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = T.CtxHov}):Play()
     end)
     btn.MouseLeave:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.1), { BackgroundColor3 = Theme.ContextMenu }):Play()
+        TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = T.CtxBG}):Play()
     end)
     btn.MouseButton1Click:Connect(function()
         state = not state
-        btn.Text = "  " .. text .. (state and " [ON]" or " [OFF]")
-        btn.TextColor3 = state and Theme.Success or Theme.TextDim
-        if callback then
-            callback(state)
-        end
+        UpdateText()
+        if cb then cb(state) end
     end)
-    return btn, function() return state end
+    return btn
 end
 
-local function ShowContextMenu(log, mousePos)
-    HideContextMenu()
-    
-    if not log or not log.Remote then return end
-    
-    local remote = log.Remote
-    local remoteId = log.DebugId
-    local order = 0
-    
-    local function nextOrder()
-        order = order + 1
-        return order
+local function PositionCtx(mousePos, itemCount)
+    local iH = isMobile and 26 or 24
+    local totalH = math.min(itemCount * (iH + 1) + 8, 300)
+    local ctxW = isMobile and 170 or 200
+    local vp = workspace.CurrentCamera.ViewportSize
+    local px = mousePos.X
+    local py = mousePos.Y - GuiInset.Y
+
+    if px + ctxW > vp.X then px = vp.X - ctxW - 4 end
+    if py + totalH > vp.Y - GuiInset.Y then py = (vp.Y - GuiInset.Y) - totalH - 4 end
+    if px < 2 then px = 2 end
+    if py < 2 then py = 2 end
+
+    CtxMenu.Position = UDim2.new(0, px, 0, py)
+    CtxMenu.Size = UDim2.new(0, ctxW, 0, totalH)
+    CtxMenu.Visible = true
+    ctxVisible = true
+end
+
+-- ============================================================
+-- SCRIPT GENERATION
+-- ============================================================
+
+local function i2p(inst)
+    if not inst then return "nil" end
+    if not inst.Parent and inst ~= game then
+        getnilrequired = true
+        return ('getNil("' .. inst.Name .. '", "' .. inst.ClassName .. '")')
     end
-    
-    -- Copy Code
-    CreateContextMenuItem("Copy Code", nextOrder(), function()
-        if log.GenScript then
-            setclipboard(log.GenScript)
+
+    local ok, path = pcall(function()
+        local lp = Players.LocalPlayer
+        if lp and (inst == lp or inst:IsDescendantOf(lp)) then
+            local rel = inst:GetFullName():sub(#lp:GetFullName() + 2)
+            return 'game:GetService("Players").LocalPlayer' .. (rel ~= "" and ("." .. rel) or "")
         end
-    end)
-    
-    -- Run Code
-    CreateContextMenuItem("Run Code", nextOrder(), function()
-        if remote and log.args then
-            xpcall(function()
-                if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
-                    remote:FireServer(unpack(log.args))
-                elseif remote:IsA("RemoteFunction") then
-                    remote:InvokeServer(unpack(log.args))
+
+        local svc = nil
+        local obj = inst
+        while obj.Parent and obj.Parent ~= game do
+            obj = obj.Parent
+        end
+        if obj.Parent == game then
+            local ok2, s = pcall(function() return game:GetService(obj.ClassName) end)
+            if ok2 and s then
+                if obj.ClassName == "Workspace" then
+                    local rel2 = inst:GetFullName():sub(#obj:GetFullName() + 2)
+                    return "workspace" .. (rel2 ~= "" and ("." .. rel2) or "")
                 end
-            end, function(err)
-                warn("[Holt Spy] Execution error: " .. tostring(err))
-            end)
+                local rel2 = inst:GetFullName():sub(#obj:GetFullName() + 2)
+                return 'game:GetService("' .. obj.ClassName .. '")' .. (rel2 ~= "" and ("." .. rel2) or "")
+            end
         end
+
+        return "game." .. inst:GetFullName():sub(6)
     end)
-    
-    CreateContextMenuSeparator(nextOrder())
-    
-    -- Copy Looped Code
-    CreateContextMenuItem("Copy Looped Code", nextOrder(), function()
-        if log.GenScript then
-            local loopedCode = "-- Looped Code generated by Holt Spy\nwhile true do\n    task.wait(0.1)\n    " .. log.GenScript:gsub("\n", "\n    ") .. "\nend"
-            setclipboard(loopedCode)
+
+    if ok and path then return path end
+    return 'game:GetService("' .. inst.ClassName .. '")'
+end
+
+local function v2s(v)
+    local t = typeof(v)
+    if t == "nil" then return "nil"
+    elseif t == "boolean" then return tostring(v)
+    elseif t == "number" then
+        if v == math.huge then return "math.huge"
+        elseif v == -math.huge then return "-math.huge"
+        elseif v ~= v then return "0/0"
+        else return tostring(v) end
+    elseif t == "string" then
+        return string.format("%q", v)
+    elseif t == "Instance" then
+        return i2p(v)
+    elseif t == "Vector3" then return ("Vector3.new(%s, %s, %s)"):format(v.X, v.Y, v.Z)
+    elseif t == "Vector2" then return ("Vector2.new(%s, %s)"):format(v.X, v.Y)
+    elseif t == "CFrame" then
+        local c = {v:GetComponents()}
+        return ("CFrame.new(%s)"):format(table.concat(c, ", "))
+    elseif t == "Color3" then return ("Color3.new(%s, %s, %s)"):format(v.R, v.G, v.B)
+    elseif t == "UDim2" then return ("UDim2.new(%s, %s, %s, %s)"):format(v.X.Scale, v.X.Offset, v.Y.Scale, v.Y.Offset)
+    elseif t == "UDim" then return ("UDim.new(%s, %s)"):format(v.Scale, v.Offset)
+    elseif t == "BrickColor" then return ("BrickColor.new(%q)"):format(v.Name)
+    elseif t == "EnumItem" then return tostring(v)
+    elseif t == "TweenInfo" then
+        return ("TweenInfo.new(%s, %s, %s, %s, %s, %s)"):format(
+            v.Time, tostring(v.EasingStyle), tostring(v.EasingDirection),
+            v.RepeatCount, tostring(v.Reverses), v.DelayTime)
+    elseif t == "table" then
+        local parts = {}
+        for k, val in next, v do
+            local ks = (type(k) == "string" and k:match("^[%a_][%w_]*$")) and k or ("[" .. v2s(k) .. "]")
+            table.insert(parts, ks .. " = " .. v2s(val))
         end
-    end)
-    
-    -- Run Looped Code
-    CreateContextMenuItem("Run Looped Code", nextOrder(), function()
-        if remote and log.args then
-            local loopId = remoteId .. "_loop_" .. tostring(tick())
-            activeLoops[loopId] = true
-            logthread(spawn(function()
-                while activeLoops[loopId] do
-                    xpcall(function()
-                        if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
-                            remote:FireServer(unpack(log.args))
-                        elseif remote:IsA("RemoteFunction") then
-                            remote:InvokeServer(unpack(log.args))
-                        end
-                    end, function() end)
-                    task.wait(0.1)
-                end
-            end))
-        end
-    end)
-    
-    -- Stop All Loops
-    CreateContextMenuItem("Stop All Loops", nextOrder(), function()
-        for k in pairs(activeLoops) do
-            activeLoops[k] = false
-        end
-        activeLoops = {}
-    end)
-    
-    CreateContextMenuSeparator(nextOrder())
-    
-    -- Copy Toggled Loop Code
-    CreateContextMenuItem("Copy Toggled Loop Code", nextOrder(), function()
-        if log.GenScript then
-            local toggledCode = "-- Toggled Loop Code generated by Holt Spy\n"
-            toggledCode = toggledCode .. "local _loopActive = false\n\n"
-            toggledCode = toggledCode .. "local function toggleLoop()\n"
-            toggledCode = toggledCode .. "    _loopActive = not _loopActive\n"
-            toggledCode = toggledCode .. "    while _loopActive do\n"
-            toggledCode = toggledCode .. "        task.wait(0.1)\n"
-            toggledCode = toggledCode .. "        " .. log.GenScript:gsub("\n", "\n        ") .. "\n"
-            toggledCode = toggledCode .. "    end\n"
-            toggledCode = toggledCode .. "end\n\n"
-            toggledCode = toggledCode .. "toggleLoop() -- Call again to stop"
-            setclipboard(toggledCode)
-        end
-    end)
-    
-    -- Toggle Loop (in menu with ON/OFF)
-    local loopKey = remoteId .. "_toggle"
-    local isLooping = activeLoops[loopKey] and true or false
-    CreateContextMenuToggle("Toggle Loop", nextOrder(), isLooping, function(state)
-        if state then
-            activeLoops[loopKey] = true
-            logthread(spawn(function()
-                while activeLoops[loopKey] do
-                    xpcall(function()
-                        if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
-                            remote:FireServer(unpack(log.args))
-                        elseif remote:IsA("RemoteFunction") then
-                            remote:InvokeServer(unpack(log.args))
-                        end
-                    end, function() end)
-                    task.wait(0.1)
-                end
-            end))
+        return "{" .. table.concat(parts, ", ") .. "}"
+    else
+        return tostring(v)
+    end
+end
+
+local function genScript(remote, args)
+    getnilrequired = false
+    local prefix = ""
+    local remotePath = i2p(remote)
+
+    local argsStr = ""
+    if args and #args > 0 then
+        local ok, result = pcall(LazyFix.Convert, args, true)
+        if ok and result then
+            argsStr = "local args = " .. result .. "\n"
         else
-            activeLoops[loopKey] = false
-        end
-    end)
-    
-    CreateContextMenuSeparator(nextOrder())
-    
-    -- Edit Code
-    CreateContextMenuItem("Edit Code", nextOrder(), function()
-        EditCodeInput.Text = log.GenScript or ""
-        EditCodePanel.Visible = true
-        Overlay.Visible = true
-        TweenService:Create(Overlay, TweenInfo.new(0.2), { BackgroundTransparency = 0.5 }):Play()
-        
-        -- Disconnect old connections if any
-        local saveConn
-        local closeConn
-        local overlayConn
-        
-        local function closeEdit()
-            EditCodePanel.Visible = false
-            TweenService:Create(Overlay, TweenInfo.new(0.2), { BackgroundTransparency = 1 }):Play()
-            task.delay(0.2, function() Overlay.Visible = false end)
-            if saveConn then saveConn:Disconnect() end
-            if closeConn then closeConn:Disconnect() end
-            if overlayConn then overlayConn:Disconnect() end
-        end
-        
-        saveConn = EditCodeSaveBtn.MouseButton1Click:Connect(function()
-            local modifiedCode = EditCodeInput.Text
-            table.insert(modifiedCodes, {
-                Name = log.Name or "Unknown",
-                Code = modifiedCode,
-                Time = os.date("%H:%M:%S"),
-                OriginalLog = log,
-            })
-            closeEdit()
-        end)
-        
-        closeConn = EditCodeCloseBtn.MouseButton1Click:Connect(function()
-            closeEdit()
-        end)
-        
-        overlayConn = Overlay.MouseButton1Click:Connect(function()
-            closeEdit()
-        end)
-    end)
-    
-    -- Exclude (Instance)
-    CreateContextMenuItem("Exclude (Instance)", nextOrder(), function()
-        if remoteId then
-            blacklist[remoteId] = true
-        end
-    end)
-    
-    -- Exclude (Name)
-    CreateContextMenuItem("Exclude (Name)", nextOrder(), function()
-        if log.Name then
-            blacklist[log.Name] = true
-        end
-    end)
-    
-    -- Block (Instance)
-    CreateContextMenuItem("Block (Instance)", nextOrder(), function()
-        if remoteId then
-            blocklist[remoteId] = true
-        end
-    end)
-    
-    -- Block (Name)
-    CreateContextMenuItem("Block (Name)", nextOrder(), function()
-        if log.Name then
-            blocklist[log.Name] = true
-        end
-    end)
-    
-    CreateContextMenuSeparator(nextOrder())
-    
-    -- Copy Remote Path
-    CreateContextMenuItem("Copy Remote Path", nextOrder(), function()
-        if log.Remote then
-            setclipboard(log.Remote:GetFullName())
-        end
-    end)
-    
-    -- Get Calling Script
-    CreateContextMenuItem("Get Calling Script", nextOrder(), function()
-        if log.Source then
-            setclipboard(tostring(log.Source:GetFullName()))
-        end
-    end)
-    
-    -- Position context menu
-    local menuItemCount = order
-    local itemHeight = isMobile and 28 or 26
-    local separatorCount = 0
-    for _, child in ipairs(ContextMenuList:GetChildren()) do
-        if child:IsA("Frame") and child.Size.Y.Offset == 1 then
-            separatorCount = separatorCount + 1
+            local parts = {}
+            for _, v in ipairs(args) do
+                table.insert(parts, v2s(v))
+            end
+            argsStr = "local args = {" .. table.concat(parts, ", ") .. "}\n"
         end
     end
-    local totalHeight = (menuItemCount - separatorCount) * (itemHeight + 1) + separatorCount * 2 + 8
-    totalHeight = math.min(totalHeight, isMobile and 320 or 400)
-    
-    local contextWidth = isMobile and 180 or 220
-    local posX = mousePos.X
-    local posY = mousePos.Y - GuiInset.Y
-    local vpSize = workspace.CurrentCamera.ViewportSize
-    
-    if posX + contextWidth > vpSize.X then
-        posX = vpSize.X - contextWidth - 5
+
+    if getnilrequired then
+        prefix = 'local function getNil(name, class)\n    for _, v in next, getnilinstances() do\n        if v.ClassName == class and v.Name == name then return v end\n    end\nend\n\n'
     end
-    if posY + totalHeight > vpSize.Y - GuiInset.Y then
-        posY = vpSize.Y - GuiInset.Y - totalHeight - 5
+
+    local callStr = ""
+    if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
+        if args and #args > 0 then
+            callStr = remotePath .. ":FireServer(table.unpack(args))"
+        else
+            callStr = remotePath .. ":FireServer()"
+        end
+    elseif remote:IsA("RemoteFunction") then
+        if args and #args > 0 then
+            callStr = "local result = " .. remotePath .. ":InvokeServer(table.unpack(args))\nprint(result)"
+        else
+            callStr = "local result = " .. remotePath .. ":InvokeServer()\nprint(result)"
+        end
     end
-    if posX < 0 then posX = 5 end
-    if posY < 0 then posY = 5 end
-    
-    ContextMenu.Position = UDim2.new(0, posX, 0, posY)
-    ContextMenu.Size = UDim2.new(0, contextWidth, 0, totalHeight)
-    ContextMenu.Visible = true
-    contextMenuVisible = true
+
+    return prefix .. argsStr .. callStr
 end
 
--- Close context menu when clicking elsewhere
-UserInputService.InputBegan:Connect(function(input)
-    if contextMenuVisible and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-        local mousePos = UserInputService:GetMouseLocation()
-        local cmPos = ContextMenu.AbsolutePosition
-        local cmSize = ContextMenu.AbsoluteSize
-        if mousePos.X < cmPos.X or mousePos.X > cmPos.X + cmSize.X or mousePos.Y - GuiInset.Y < cmPos.Y or mousePos.Y - GuiInset.Y > cmPos.Y + cmSize.Y then
-            task.defer(function()
-                HideContextMenu()
-            end)
-        end
+-- ============================================================
+-- MODIFIED CODE PANEL
+-- ============================================================
+
+local function RefreshModPanel()
+    for _, c in ipairs(ModList:GetChildren()) do
+        if not c:IsA("UIListLayout") then c:Destroy() end
     end
+    for i, entry in ipairs(modifiedCodes) do
+        local row = New("TextButton", {
+            Parent           = ModList,
+            BackgroundColor3 = T.SurfaceL,
+            BorderSizePixel  = 0,
+            Size             = UDim2.new(1, -2, 0, isMobile and 28 or 24),
+            Font             = Enum.Font.Gotham,
+            Text             = "  [" .. entry.Time .. "]  " .. entry.Name,
+            TextColor3       = T.Text,
+            TextSize         = FONT_SM,
+            TextXAlignment   = Enum.TextXAlignment.Left,
+            TextTruncate     = Enum.TextTruncate.AtEnd,
+            AutoButtonColor  = false,
+            LayoutOrder      = i,
+            ZIndex           = 703,
+        })
+        Corner(4, row)
+        row.MouseEnter:Connect(function()
+            TweenService:Create(row, TweenInfo.new(0.1), {BackgroundColor3 = T.SurfaceLL}):Play()
+        end)
+        row.MouseLeave:Connect(function()
+            TweenService:Create(row, TweenInfo.new(0.1), {BackgroundColor3 = T.SurfaceL}):Play()
+        end)
+        row.MouseButton1Click:Connect(function()
+            -- show context menu for this modified entry
+            local mp = UserInputService:GetMouseLocation()
+            HideCtx()
+            local o = 0
+            local function no() o += 1; return o end
+
+            CtxItem("Copy Code", no(), function() setclipboard(entry.Code) end)
+            CtxItem("Run Code", no(), function()
+                xpcall(loadstring(entry.Code), function(e) warn("[Holt Spy] " .. e) end)
+            end)
+            CtxSep(no())
+            CtxItem("Copy Looped Code", no(), function()
+                local lc = "while task.wait(0.1) do\n    " .. entry.Code:gsub("\n", "\n    ") .. "\nend"
+                setclipboard(lc)
+            end)
+            CtxItem("Run Looped Code", no(), function()
+                local lid = "mod_loop_" .. tostring(entry) .. tostring(tick())
+                activeLoops[lid] = true
+                logThread(spawn(function()
+                    while activeLoops[lid] do
+                        xpcall(loadstring(entry.Code), function() end)
+                        task.wait(0.1)
+                    end
+                end))
+            end)
+            CtxItem("Stop All Loops", no(), function()
+                for k in pairs(activeLoops) do activeLoops[k] = false end
+                table.clear(activeLoops)
+            end)
+            CtxSep(no())
+            CtxItem("Copy Toggled Code", no(), function()
+                local tc = "_G._holtLoop = not _G._holtLoop\nif _G._holtLoop then\n    task.spawn(function()\n        while _G._holtLoop do\n            task.wait(0.1)\n            " .. entry.Code:gsub("\n", "\n            ") .. "\n        end\n    end)\nend"
+                setclipboard(tc)
+            end)
+            local lk = "mod_toggle_" .. tostring(entry)
+            CtxToggle("Toggle Loop", no(), activeLoops[lk] and true or false, function(state)
+                if state then
+                    activeLoops[lk] = true
+                    logThread(spawn(function()
+                        while activeLoops[lk] do
+                            xpcall(loadstring(entry.Code), function() end)
+                            task.wait(0.1)
+                        end
+                    end))
+                else
+                    activeLoops[lk] = false
+                end
+            end)
+            CtxSep(no())
+            CtxItem("Edit Code", no(), function()
+                EditInput.Text = entry.Code
+                EditPanel.Visible = true
+                ShowOverlay()
+                local sc, cc, oc
+                sc = EditSaveBtn.MouseButton1Click:Connect(function()
+                    entry.Code = EditInput.Text
+                    HideOverlay()
+                    EditPanel.Visible = false
+                    RefreshModPanel()
+                    sc:Disconnect(); cc:Disconnect(); oc:Disconnect()
+                end)
+                cc = EditCloseBtn.MouseButton1Click:Connect(function()
+                    HideOverlay(); EditPanel.Visible = false
+                    sc:Disconnect(); cc:Disconnect(); oc:Disconnect()
+                end)
+                oc = Overlay.MouseButton1Click:Connect(function()
+                    HideOverlay(); EditPanel.Visible = false
+                    sc:Disconnect(); cc:Disconnect(); oc:Disconnect()
+                end)
+            end)
+            CtxItem("Delete", no(), function()
+                for idx, e in ipairs(modifiedCodes) do
+                    if e == entry then table.remove(modifiedCodes, idx); break end
+                end
+                RefreshModPanel()
+            end, T.Error)
+
+            PositionCtx(mp, o)
+        end)
+    end
+end
+
+ModCloseBtn.MouseButton1Click:Connect(function()
+    ModPanel.Visible = false
+    HideOverlay()
+end)
+Overlay.MouseButton1Click:Connect(function()
+    if EditPanel.Visible then EditPanel.Visible = false end
+    if ModPanel.Visible then ModPanel.Visible = false end
+    HideOverlay()
 end)
 
 -- ============================================================
--- MODIFIED CODE PANEL LOGIC
+-- SHOW CONTEXT MENU FOR A LOG ENTRY
 -- ============================================================
 
-local function ShowModifiedCodeContextMenu(entry, mousePos)
-    HideContextMenu()
-    local order = 0
-    local function nextOrder()
-        order = order + 1
-        return order
-    end
-    
-    CreateContextMenuItem("Copy Code", nextOrder(), function()
-        setclipboard(entry.Code)
+local function ShowCtxForLog(log)
+    if not log or not log.Remote then return end
+    HideCtx()
+
+    local remote  = log.Remote
+    local remId   = log.DebugId
+    local o = 0
+    local function no() o += 1; return o end
+
+    CtxItem("Copy Code", no(), function()
+        if log.GenScript then setclipboard(log.GenScript) end
     end)
-    
-    CreateContextMenuItem("Run Code", nextOrder(), function()
+
+    CtxItem("Run Code", no(), function()
+        if not remote or not log.args then return end
         xpcall(function()
-            loadstring(entry.Code)()
-        end, function(err)
-            warn("[Holt Spy] Modified code execution error: " .. tostring(err))
-        end)
+            if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
+                remote:FireServer(table.unpack(log.args))
+            elseif remote:IsA("RemoteFunction") then
+                remote:InvokeServer(table.unpack(log.args))
+            end
+        end, function(e) warn("[Holt Spy] Run error: " .. e) end)
     end)
-    
-    CreateContextMenuSeparator(nextOrder())
-    
-    CreateContextMenuItem("Copy Looped Code", nextOrder(), function()
-        local looped = "while true do\n    task.wait(0.1)\n    " .. entry.Code:gsub("\n", "\n    ") .. "\nend"
-        setclipboard(looped)
+
+    CtxSep(no())
+
+    CtxItem("Copy Looped Code", no(), function()
+        if not log.GenScript then return end
+        local lc = "while task.wait(0.1) do\n    " .. log.GenScript:gsub("\n", "\n    ") .. "\nend"
+        setclipboard(lc)
     end)
-    
-    CreateContextMenuItem("Run Looped Code", nextOrder(), function()
-        local loopId = "modified_" .. tostring(tick())
-        activeLoops[loopId] = true
-        logthread(spawn(function()
-            while activeLoops[loopId] do
+
+    CtxItem("Run Looped Code", no(), function()
+        if not remote or not log.args then return end
+        local lid = (remId or tostring(remote)) .. "_loop_" .. tostring(tick())
+        activeLoops[lid] = true
+        logThread(spawn(function()
+            while activeLoops[lid] do
                 xpcall(function()
-                    loadstring(entry.Code)()
+                    if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
+                        remote:FireServer(table.unpack(log.args))
+                    elseif remote:IsA("RemoteFunction") then
+                        remote:InvokeServer(table.unpack(log.args))
+                    end
                 end, function() end)
                 task.wait(0.1)
             end
         end))
     end)
-    
-    CreateContextMenuItem("Stop All Loops", nextOrder(), function()
-        for k in pairs(activeLoops) do
-            activeLoops[k] = false
-        end
-        activeLoops = {}
+
+    CtxItem("Stop All Loops", no(), function()
+        for k in pairs(activeLoops) do activeLoops[k] = false end
+        table.clear(activeLoops)
     end)
-    
-    CreateContextMenuSeparator(nextOrder())
-    
-    CreateContextMenuItem("Copy Toggled Loop Code", nextOrder(), function()
-        local toggledCode = "local _loopActive = false\nlocal function toggleLoop()\n    _loopActive = not _loopActive\n    while _loopActive do\n        task.wait(0.1)\n        " .. entry.Code:gsub("\n", "\n        ") .. "\n    end\nend\ntoggleLoop()"
-        setclipboard(toggledCode)
+
+    CtxSep(no())
+
+    CtxItem("Copy Toggled Code", no(), function()
+        if not log.GenScript then return end
+        local inner = log.GenScript:gsub("\n", "\n            ")
+        local tc = "_G._holtLoop = not _G._holtLoop\nif _G._holtLoop then\n    task.spawn(function()\n        while _G._holtLoop do\n            task.wait(0.1)\n            " .. inner .. "\n        end\n    end)\nend"
+        setclipboard(tc)
     end)
-    
-    local loopKey = "modified_toggle_" .. tostring(entry)
-    local isLooping = activeLoops[loopKey] and true or false
-    CreateContextMenuToggle("Toggle Loop", nextOrder(), isLooping, function(state)
+
+    local lk = (remId or tostring(remote)) .. "_toggle"
+    CtxToggle("Toggle Loop", no(), activeLoops[lk] and true or false, function(state)
         if state then
-            activeLoops[loopKey] = true
-            logthread(spawn(function()
-                while activeLoops[loopKey] do
+            activeLoops[lk] = true
+            logThread(spawn(function()
+                while activeLoops[lk] do
                     xpcall(function()
-                        loadstring(entry.Code)()
+                        if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
+                            remote:FireServer(table.unpack(log.args))
+                        elseif remote:IsA("RemoteFunction") then
+                            remote:InvokeServer(table.unpack(log.args))
+                        end
                     end, function() end)
                     task.wait(0.1)
                 end
             end))
         else
-            activeLoops[loopKey] = false
+            activeLoops[lk] = false
         end
     end)
-    
-    CreateContextMenuSeparator(nextOrder())
-    
-    CreateContextMenuItem("Edit Code", nextOrder(), function()
-        EditCodeInput.Text = entry.Code
-        EditCodePanel.Visible = true
-        Overlay.Visible = true
-        TweenService:Create(Overlay, TweenInfo.new(0.2), { BackgroundTransparency = 0.5 }):Play()
-        
-        local saveConn, closeConn, overlayConn
-        local function closeEdit()
-            EditCodePanel.Visible = false
-            TweenService:Create(Overlay, TweenInfo.new(0.2), { BackgroundTransparency = 1 }):Play()
-            task.delay(0.2, function() Overlay.Visible = false end)
-            if saveConn then saveConn:Disconnect() end
-            if closeConn then closeConn:Disconnect() end
-            if overlayConn then overlayConn:Disconnect() end
-        end
-        saveConn = EditCodeSaveBtn.MouseButton1Click:Connect(function()
-            entry.Code = EditCodeInput.Text
-            closeEdit()
+
+    CtxSep(no())
+
+    CtxItem("Edit Code", no(), function()
+        EditInput.Text = log.GenScript or ""
+        EditPanel.Visible = true
+        ShowOverlay()
+        local sc, cc, oc
+        sc = EditSaveBtn.MouseButton1Click:Connect(function()
+            local saved = {
+                Name = log.Name or "Unknown",
+                Code = EditInput.Text,
+                Time = os.date("%H:%M:%S"),
+            }
+            table.insert(modifiedCodes, saved)
+            HideOverlay()
+            EditPanel.Visible = false
+            sc:Disconnect(); cc:Disconnect(); oc:Disconnect()
         end)
-        closeConn = EditCodeCloseBtn.MouseButton1Click:Connect(function()
-            closeEdit()
+        cc = EditCloseBtn.MouseButton1Click:Connect(function()
+            HideOverlay(); EditPanel.Visible = false
+            sc:Disconnect(); cc:Disconnect(); oc:Disconnect()
         end)
-        overlayConn = Overlay.MouseButton1Click:Connect(function()
-            closeEdit()
+        oc = Overlay.MouseButton1Click:Connect(function()
+            HideOverlay(); EditPanel.Visible = false
+            sc:Disconnect(); cc:Disconnect(); oc:Disconnect()
         end)
     end)
-    
-    CreateContextMenuItem("Delete", nextOrder(), function()
-        for i, e in ipairs(modifiedCodes) do
-            if e == entry then
-                table.remove(modifiedCodes, i)
-                break
-            end
-        end
-        -- Refresh the modified list UI
-        RefreshModifiedList()
+
+    CtxSep(no())
+
+    CtxItem("Exclude (Instance)", no(), function()
+        if remId then blacklist[remId] = true end
     end)
-    
-    local menuItemCount = order
-    local itemHeight = isMobile and 28 or 26
-    local totalHeight = math.min(menuItemCount * (itemHeight + 1) + 8, isMobile and 320 or 400)
-    local contextWidth = isMobile and 180 or 220
-    local posX = mousePos.X
-    local posY = mousePos.Y - GuiInset.Y
-    local vpSize = workspace.CurrentCamera.ViewportSize
-    if posX + contextWidth > vpSize.X then posX = vpSize.X - contextWidth - 5 end
-    if posY + totalHeight > vpSize.Y - GuiInset.Y then posY = vpSize.Y - GuiInset.Y - totalHeight - 5 end
-    if posX < 0 then posX = 5 end
-    if posY < 0 then posY = 5 end
-    
-    ContextMenu.Position = UDim2.new(0, posX, 0, posY)
-    ContextMenu.Size = UDim2.new(0, contextWidth, 0, totalHeight)
-    ContextMenu.Visible = true
-    contextMenuVisible = true
+    CtxItem("Exclude (Name)", no(), function()
+        if log.Name then blacklist[log.Name] = true end
+    end)
+    CtxItem("Block (Instance)", no(), function()
+        if remId then blocklist[remId] = true end
+    end)
+    CtxItem("Block (Name)", no(), function()
+        if log.Name then blocklist[log.Name] = true end
+    end)
+
+    CtxSep(no())
+
+    CtxItem("Copy Remote Path", no(), function()
+        if log.Remote then setclipboard(log.Remote:GetFullName()) end
+    end)
+
+    local mp = UserInputService:GetMouseLocation()
+    PositionCtx(mp, o)
 end
 
-function RefreshModifiedList()
-    for _, child in ipairs(ModifiedList:GetChildren()) do
-        if not child:IsA("UIListLayout") then
-            child:Destroy()
+-- Close ctx on outside click
+UserInputService.InputBegan:Connect(function(input)
+    if not ctxVisible then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        local mp = UserInputService:GetMouseLocation()
+        local cp = CtxMenu.AbsolutePosition
+        local cs = CtxMenu.AbsoluteSize
+        if mp.X < cp.X or mp.X > cp.X + cs.X
+        or mp.Y - GuiInset.Y < cp.Y or mp.Y - GuiInset.Y > cp.Y + cs.Y then
+            task.defer(HideCtx)
         end
     end
-    for i, entry in ipairs(modifiedCodes) do
-        local entryFrame = Create("TextButton", {
-            Parent = ModifiedList,
-            BackgroundColor3 = Theme.SurfaceLight,
-            BorderSizePixel = 0,
-            Size = UDim2.new(1, -4, 0, isMobile and 32 or 28),
-            Font = Enum.Font.Gotham,
-            Text = "  [" .. entry.Time .. "] " .. entry.Name,
-            TextColor3 = Theme.Text,
-            TextSize = isMobile and 12 or 12,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextTruncate = Enum.TextTruncate.AtEnd,
-            AutoButtonColor = false,
-            LayoutOrder = i,
-            ZIndex = 303,
-        })
-        Create("UICorner", { Parent = entryFrame, CornerRadius = UDim.new(0, 4) })
-        
-        entryFrame.MouseEnter:Connect(function()
-            TweenService:Create(entryFrame, TweenInfo.new(0.1), { BackgroundColor3 = Theme.SurfaceLighter }):Play()
-        end)
-        entryFrame.MouseLeave:Connect(function()
-            TweenService:Create(entryFrame, TweenInfo.new(0.1), { BackgroundColor3 = Theme.SurfaceLight }):Play()
-        end)
-        entryFrame.MouseButton1Click:Connect(function()
-            ModifiedPanel.Visible = false
-            TweenService:Create(Overlay, TweenInfo.new(0.2), { BackgroundTransparency = 1 }):Play()
-            task.delay(0.2, function() Overlay.Visible = false end)
-            local mPos = UserInputService:GetMouseLocation()
-            ShowModifiedCodeContextMenu(entry, mPos)
-        end)
-    end
-end
-
-ModifiedCloseBtn.MouseButton1Click:Connect(function()
-    ModifiedPanel.Visible = false
-    TweenService:Create(Overlay, TweenInfo.new(0.2), { BackgroundTransparency = 1 }):Play()
-    task.delay(0.2, function() Overlay.Visible = false end)
 end)
 
 -- ============================================================
--- CORE FUNCTIONS
+-- WINDOW: DRAGGING
 -- ============================================================
 
-function clean()
-    local max = getgenv().HOLTSPYCONFIG_MaxRemotes or 500
-    if not (typeof(max) == "number" and math.floor(max) == max) then
-        max = 500
-    end
-    if #remoteLogs > max then
-        for i = 100, #remoteLogs do
-            local v = remoteLogs[i]
-            if typeof(v[1]) == "RBXScriptConnection" then
-                v[1]:Disconnect()
-            end
-            if typeof(v[2]) == "Instance" then
-                v[2]:Destroy()
-            end
+local function setupDrag()
+    local dragging = false
+    local dragStart, startPos
+
+    local function inputBegan(input)
+        local mp = UserInputService:GetMouseLocation() - GuiInset
+        local tbPos = TopBar.AbsolutePosition
+        local tbSize = TopBar.AbsoluteSize
+        if mp.X < tbPos.X or mp.X > tbPos.X + tbSize.X - TOPBAR_H * 3 then return end
+        if mp.Y < tbPos.Y or mp.Y > tbPos.Y + tbSize.Y then return end
+
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = UserInputService:GetMouseLocation()
+            startPos = Background.Position
         end
-        local newLogs = {}
-        for i = 1, 100 do
-            table.insert(newLogs, remoteLogs[i])
+    end
+
+    local function inputChanged(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = UserInputService:GetMouseLocation() - dragStart
+            local vp = workspace.CurrentCamera.ViewportSize
+            local newX = startPos.X.Offset + delta.X
+            local newY = startPos.Y.Offset + delta.Y
+
+            -- clamp so window cant go fully offscreen
+            newX = math.clamp(newX, -(WIN_W - 60), vp.X - 60)
+            newY = math.clamp(newY, 0, vp.Y - TOPBAR_H - GuiInset.Y)
+
+            Background.Position = UDim2.new(0, newX, 0, newY)
         end
-        remoteLogs = newLogs
     end
-end
 
-function scaleToolTip()
-    local size = TextService:GetTextSize(ToolTipText.Text, ToolTipText.TextSize, ToolTipText.Font, Vector2.new(196, math.huge))
-    ToolTipText.Size = UDim2.new(0, size.X, 0, size.Y)
-    ToolTip.Size = UDim2.new(0, size.X + 12, 0, size.Y + 8)
-end
-
-function onToggleButtonHover()
-    if not toggle then
-        TweenService:Create(TitleButton, TweenInfo.new(0.3), { TextColor3 = Theme.Error }):Play()
-    else
-        TweenService:Create(TitleButton, TweenInfo.new(0.3), { TextColor3 = Theme.Success }):Play()
-    end
-end
-
-function onToggleButtonUnhover()
-    TweenService:Create(TitleButton, TweenInfo.new(0.3), { TextColor3 = Theme.AccentLight }):Play()
-end
-
-function onToggleButtonClick()
-    if toggle then
-        TweenService:Create(TitleButton, TweenInfo.new(0.3), { TextColor3 = Theme.Error }):Play()
-    else
-        TweenService:Create(TitleButton, TweenInfo.new(0.3), { TextColor3 = Theme.Success }):Play()
-    end
-    toggleSpyMethod()
-end
-
-function connectResize()
-    if not workspace.CurrentCamera then
-        workspace:GetPropertyChangedSignal("CurrentCamera"):Wait()
-    end
-    local lastCam = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(bringBackOnResize)
-    workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-        lastCam:Disconnect()
-        lastCam = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(bringBackOnResize)
-    end)
-end
-
-function bringBackOnResize()
-    local currentX = Background.AbsolutePosition.X
-    local currentY = Background.AbsolutePosition.Y
-    local vpSize = workspace.CurrentCamera.ViewportSize
-    local bgSize = Background.AbsoluteSize
-    
-    if currentX < 0 then currentX = 0 end
-    if currentX > vpSize.X - bgSize.X then currentX = vpSize.X - bgSize.X end
-    if currentY < 0 then currentY = 0 end
-    if currentY > vpSize.Y - bgSize.Y - GuiInset.Y then currentY = vpSize.Y - bgSize.Y - GuiInset.Y end
-    
-    TweenService:Create(Background, TweenInfo.new(0.1), { Position = UDim2.new(0, currentX, 0, currentY) }):Play()
-end
-
-function onBarInput(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        local lastPos = UserInputService:GetMouseLocation()
-        local mainPos = Background.AbsolutePosition
-        local offset = mainPos - lastPos
-        local currentPos = offset + lastPos
-        if not connections["drag"] then
-            connections["drag"] = RunService.RenderStepped:Connect(function()
-                local newPos = UserInputService:GetMouseLocation()
-                if newPos ~= lastPos then
-                    local currentX = (offset + newPos).X
-                    local currentY = (offset + newPos).Y
-                    local vpSize = workspace.CurrentCamera.ViewportSize
-                    if currentX < 0 then currentX = 0 end
-                    if currentX > vpSize.X - Background.AbsoluteSize.X then currentX = vpSize.X - Background.AbsoluteSize.X end
-                    if currentY < 0 then currentY = 0 end
-                    if currentY > vpSize.Y - Background.AbsoluteSize.Y - GuiInset.Y then currentY = vpSize.Y - Background.AbsoluteSize.Y - GuiInset.Y end
-                    currentPos = Vector2.new(currentX, currentY)
-                    lastPos = newPos
-                    Background.Position = UDim2.new(0, currentPos.X, 0, currentPos.Y)
-                end
-            end)
+    local function inputEnded(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
         end
-        table.insert(connections, UserInputService.InputEnded:Connect(function(inputE)
-            if input == inputE then
-                if connections["drag"] then
-                    connections["drag"]:Disconnect()
-                    connections["drag"] = nil
-                end
-            end
-        end))
     end
+
+    TopBar.InputBegan:Connect(inputBegan)
+    UserInputService.InputChanged:Connect(inputChanged)
+    UserInputService.InputEnded:Connect(inputEnded)
 end
 
-function toggleMinimize(override)
-    if mainClosing and not override then return end
-    mainClosing = true
-    closed = not closed
-    if closed then
-        TweenService:Create(Background, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            Size = UDim2.new(0, Background.AbsoluteSize.X, 0, topBarHeight)
+-- ============================================================
+-- WINDOW: MINIMIZE / SIDE TRAY
+-- ============================================================
+
+local function SetMinimized(state)
+    minimized = state
+    if minimized then
+        TweenService:Create(Background, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, WIN_W, 0, TOPBAR_H)
         }):Play()
         LeftPanel.Visible = false
         RightPanel.Visible = false
+        task.delay(0.3, function()
+            Background.Visible = false
+            MinIcon.Visible = true
+        end)
     else
+        MinIcon.Visible = false
+        Background.Visible = true
         LeftPanel.Visible = true
         RightPanel.Visible = not sideClosed
-        TweenService:Create(Background, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            Size = UDim2.new(0, guiWidth, 0, guiHeight)
+        TweenService:Create(Background, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, WIN_W, 0, WIN_H)
         }):Play()
-        task.delay(0.3, function()
-            bringBackOnResize()
-        end)
     end
-    task.delay(0.3, function()
-        mainClosing = false
-    end)
 end
 
-function toggleSideTray(override)
-    if sideClosing and not override then return end
-    sideClosing = true
-    sideClosed = not sideClosed
-    if sideClosed then
-        TweenService:Create(RightPanel, TweenInfo.new(0.3), { Size = UDim2.new(0, 0, 1, -topBarHeight) }):Play()
-        TweenService:Create(LeftPanel, TweenInfo.new(0.3), { Size = UDim2.new(1, 0, 1, -topBarHeight) }):Play()
-        task.delay(0.3, function()
-            RightPanel.Visible = false
-        end)
+local function SetSideTray(closed)
+    sideClosed = closed
+    if closed then
+        TweenService:Create(RightPanel, TweenInfo.new(0.2), {Size = UDim2.new(0, 0, 1, -TOPBAR_H)}):Play()
+        TweenService:Create(LeftPanel, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 1, -TOPBAR_H)}):Play()
+        task.delay(0.22, function() RightPanel.Visible = false end)
     else
-        if closed then
-            toggleMinimize(true)
-        end
+        if minimized then SetMinimized(false) end
         RightPanel.Visible = true
-        TweenService:Create(LeftPanel, TweenInfo.new(0.3), { Size = UDim2.new(0, leftPanelWidth, 1, -topBarHeight) }):Play()
-        TweenService:Create(RightPanel, TweenInfo.new(0.3), { Size = UDim2.new(1, -leftPanelWidth, 1, -topBarHeight) }):Play()
+        TweenService:Create(LeftPanel, TweenInfo.new(0.2), {Size = UDim2.new(0, LEFT_W, 1, -TOPBAR_H)}):Play()
+        TweenService:Create(RightPanel, TweenInfo.new(0.2), {Size = UDim2.new(1, -LEFT_W, 1, -TOPBAR_H)}):Play()
     end
-    task.delay(0.3, function()
-        sideClosing = false
-        bringBackOnResize()
-    end)
 end
 
-function makeToolTip(enable, text)
-    if enable and text then
-        if ToolTip.Visible then
-            ToolTip.Visible = false
-            local tooltip = connections["ToolTip"]
-            if tooltip then tooltip:Disconnect() end
+MinimizeBtn.MouseButton1Click:Connect(function()
+    SetMinimized(not minimized)
+end)
+SideBtn.MouseButton1Click:Connect(function()
+    SetSideTray(not sideClosed)
+end)
+MinIcon.MouseButton1Click:Connect(function()
+    SetMinimized(false)
+end)
+
+TitleBtn.MouseButton1Click:Connect(function()
+    -- toggle the spy on/off
+end)
+
+-- ============================================================
+-- REMOTE LOG LIST
+-- ============================================================
+
+local function SelectLog(log)
+    -- Deselect old
+    for _, l in ipairs(logs) do
+        if l.Button then
+            TweenService:Create(l.Button, TweenInfo.new(0.15), {BackgroundTransparency = 0.85}):Play()
         end
-        local first = true
-        connections["ToolTip"] = RunService.RenderStepped:Connect(function()
-            local MousePos = UserInputService:GetMouseLocation()
-            local topLeft = MousePos + Vector2.new(20, -15)
-            local bottomRight = topLeft + ToolTip.AbsoluteSize
-            local ViewportSize = workspace.CurrentCamera.ViewportSize
-            
-            if topLeft.X < 0 then topLeft = Vector2.new(0, topLeft.Y) end
-            if bottomRight.X > ViewportSize.X then topLeft = Vector2.new(ViewportSize.X - ToolTip.AbsoluteSize.X, topLeft.Y) end
-            if topLeft.Y < 0 then topLeft = Vector2.new(topLeft.X, 0) end
-            if bottomRight.Y > ViewportSize.Y - 35 then topLeft = Vector2.new(topLeft.X, ViewportSize.Y - ToolTip.AbsoluteSize.Y - 35) end
-            
-            if first then
-                ToolTip.Position = UDim2.fromOffset(topLeft.X, topLeft.Y)
-                first = false
-            else
-                ToolTip:TweenPosition(UDim2.fromOffset(topLeft.X, topLeft.Y), "Out", "Linear", 0.1)
-            end
-        end)
-        ToolTipText.Text = text
-        ToolTip.Visible = true
-    else
-        if ToolTip.Visible then
-            ToolTip.Visible = false
-            local tooltip = connections["ToolTip"]
-            if tooltip then tooltip:Disconnect() end
+    end
+    selected = log
+    if log and log.Button then
+        TweenService:Create(log.Button, TweenInfo.new(0.15), {BackgroundTransparency = 0.4}):Play()
+    end
+    if log then
+        if sideClosed then SetSideTray(false) end
+        if log.GenScript and codebox then
+            codebox:setRaw(log.GenScript)
         end
     end
 end
 
-function backgroundUserInput(input)
-    local mousePos = UserInputService:GetMouseLocation() - GuiInset
-    local topBarPos = TopBar.AbsolutePosition
-    local topBarSize = TopBar.AbsoluteSize
-    
-    if mousePos.X >= topBarPos.X and mousePos.X <= topBarPos.X + topBarSize.X - topBarHeight * 3
-        and mousePos.Y >= topBarPos.Y and mousePos.Y <= topBarPos.Y + topBarSize.Y then
-        onBarInput(input)
-    end
-end
-
--- ============================================================
--- BUTTON CREATION
--- ============================================================
-
-function newButton(name, description, onClick)
-    local BtnFrame = Create("Frame", {
-        Name = "BtnFrame",
-        Parent = ScrollingFrame,
-        BackgroundTransparency = 1,
-        Size = UDim2.new(0, isMobile and 80 or 100, 0, isMobile and 26 or 28),
-    })
-    
-    local Btn = Create("TextButton", {
-        Name = "Btn",
-        Parent = BtnFrame,
-        BackgroundColor3 = Theme.SurfaceLighter,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 1, 0),
-        Font = Enum.Font.Gotham,
-        Text = name,
-        TextColor3 = Theme.Text,
-        TextSize = isMobile and 10 or 11,
-        AutoButtonColor = false,
-        TextTruncate = Enum.TextTruncate.AtEnd,
-    })
-    Create("UICorner", { Parent = Btn, CornerRadius = UDim.new(0, 4) })
-    
-    local AccentBar = Create("Frame", {
-        Parent = Btn,
-        BackgroundColor3 = Theme.Accent,
-        BorderSizePixel = 0,
-        Position = UDim2.new(0, 0, 1, -2),
-        Size = UDim2.new(1, 0, 0, 2),
-    })
-    Create("UICorner", { Parent = AccentBar, CornerRadius = UDim.new(0, 1) })
-    
-    Btn.MouseEnter:Connect(function()
-        TweenService:Create(Btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.ButtonHover }):Play()
-        makeToolTip(true, description())
-    end)
-    Btn.MouseLeave:Connect(function()
-        TweenService:Create(Btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.SurfaceLighter }):Play()
-        makeToolTip(false)
-    end)
-    BtnFrame.AncestryChanged:Connect(function()
-        makeToolTip(false)
-    end)
-    Btn.MouseButton1Click:Connect(function(...)
-        logthread(running())
-        onClick(BtnFrame, ...)
-    end)
-end
-
--- ============================================================
--- REMOTE LOGGING
--- ============================================================
-
-function eventSelect(frame)
-    if selected and selected.Log then
-        if selected.Button then
-            spawn(function()
-                TweenService:Create(selected.Button, TweenInfo.new(0.3), { BackgroundColor3 = Color3.new(0, 0, 0) }):Play()
-                TweenService:Create(selected.Button, TweenInfo.new(0.3), { BackgroundTransparency = 0.85 }):Play()
-            end)
-        end
-        selected = nil
-    end
-    for _, v in next, logs do
-        if frame == v.Log then
-            selected = v
-        end
-    end
-    if selected and selected.Log then
-        spawn(function()
-            TweenService:Create(frame.Button, TweenInfo.new(0.3), { BackgroundColor3 = Theme.Accent }):Play()
-            TweenService:Create(frame.Button, TweenInfo.new(0.3), { BackgroundTransparency = 0.4 }):Play()
-        end)
-        codebox:setRaw(selected.GenScript)
-    end
-    if sideClosed then
-        toggleSideTray()
-    end
-end
-
-function updateRemoteCanvas()
-    LogList.CanvasSize = UDim2.fromOffset(UIListLayout.AbsoluteContentSize.X, UIListLayout.AbsoluteContentSize.Y)
-end
-
-function newRemote(remoteType, data)
-    if layoutOrderNum < 1 then layoutOrderNum = 999999999 end
+local function AddRemoteLog(remoteType, data)
+    if layoutOrder < 1 then layoutOrder = 999999999 end
     local remote = data.remote
-    
-    local RemoteTemplate = Create("Frame", {
-        LayoutOrder = layoutOrderNum,
-        Name = "RemoteTemplate",
-        Parent = LogList,
+    if not remote then return end
+
+    local frame = New("Frame", {
+        LayoutOrder      = layoutOrder,
+        Name             = "RemoteLog",
+        Parent           = LogList,
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, -6, 0, isMobile and 28 or 24),
+        Size             = UDim2.new(1, -4, 0, isMobile and 24 or 22),
     })
-    
-    local ColorBar = Create("Frame", {
-        Name = "ColorBar",
-        Parent = RemoteTemplate,
-        BackgroundColor3 = (remoteType == "event" and Theme.EventColor) or Theme.FunctionColor,
-        BorderSizePixel = 0,
-        Position = UDim2.new(0, 3, 0, 2),
-        Size = UDim2.new(0, 3, 1, -4),
-        ZIndex = 2,
+
+    New("Frame", {
+        Parent           = frame,
+        BackgroundColor3 = remoteType == "event" and T.EventCol or T.FuncCol,
+        BorderSizePixel  = 0,
+        Position         = UDim2.new(0, 0, 0.1, 0),
+        Size             = UDim2.new(0, 2, 0.8, 0),
+        ZIndex           = 13,
     })
-    Create("UICorner", { Parent = ColorBar, CornerRadius = UDim.new(0, 2) })
-    
-    local Text = Create("TextLabel", {
-        TextTruncate = Enum.TextTruncate.AtEnd,
-        Name = "Text",
-        Parent = RemoteTemplate,
+
+    New("TextLabel", {
+        Parent           = frame,
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 10, 0, 0),
-        Size = UDim2.new(1, -14, 1, 0),
-        ZIndex = 2,
-        Font = Enum.Font.Gotham,
-        Text = remote.Name,
-        TextColor3 = Theme.Text,
-        TextSize = isMobile and 11 or 12,
-        TextXAlignment = Enum.TextXAlignment.Left,
+        Position         = UDim2.new(0, 6, 0, 0),
+        Size             = UDim2.new(1, -8, 1, 0),
+        Font             = Enum.Font.Gotham,
+        Text             = remote.Name,
+        TextColor3       = T.Text,
+        TextSize         = FONT_SM,
+        TextXAlignment   = Enum.TextXAlignment.Left,
+        TextTruncate     = Enum.TextTruncate.AtEnd,
+        ZIndex           = 13,
     })
-    
-    local Button = Create("TextButton", {
-        Name = "Button",
-        Parent = RemoteTemplate,
+
+    local btn = New("TextButton", {
+        Name             = "Button",
+        Parent           = frame,
         BackgroundColor3 = Color3.new(0, 0, 0),
         BackgroundTransparency = 0.85,
-        BorderSizePixel = 0,
-        Position = UDim2.new(0, 0, 0, 0),
-        Size = UDim2.new(1, 0, 1, 0),
-        AutoButtonColor = false,
-        Font = Enum.Font.Gotham,
-        Text = "",
-        TextSize = 14,
+        BorderSizePixel  = 0,
+        Size             = UDim2.new(1, 0, 1, 0),
+        AutoButtonColor  = false,
+        Text             = "",
+        ZIndex           = 14,
     })
-    Create("UICorner", { Parent = Button, CornerRadius = UDim.new(0, 4) })
-    
-    Button.MouseEnter:Connect(function()
-        if not (selected and selected.Log == RemoteTemplate) then
-            TweenService:Create(Button, TweenInfo.new(0.15), { BackgroundTransparency = 0.7 }):Play()
+    Corner(3, btn)
+
+    btn.MouseEnter:Connect(function()
+        if not (selected and selected.Log == frame) then
+            TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundTransparency = 0.65}):Play()
         end
     end)
-    Button.MouseLeave:Connect(function()
-        if not (selected and selected.Log == RemoteTemplate) then
-            TweenService:Create(Button, TweenInfo.new(0.15), { BackgroundTransparency = 0.85 }):Play()
+    btn.MouseLeave:Connect(function()
+        if not (selected and selected.Log == frame) then
+            TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundTransparency = 0.85}):Play()
         end
     end)
-    
+
     local log = {
-        Name = remote.Name,
-        Function = data.infofunc or "--Function Info is disabled",
-        Remote = remote,
-        DebugId = data.id,
-        metamethod = data.metamethod,
-        args = data.args,
-        Log = RemoteTemplate,
-        Button = Button,
-        Blocked = data.blocked,
-        Source = data.callingscript,
-        returnvalue = data.returnvalue,
-        GenScript = "-- Generating, please wait...\n-- (If this message persists, the remote args are likely extremely long)"
+        Name      = remote.Name,
+        Remote    = remote,
+        DebugId   = data.id,
+        args      = data.args or {},
+        Log       = frame,
+        Button    = btn,
+        Blocked   = data.blockcheck or false,
+        Source    = data.callingscript,
+        GenScript = "-- Generating...",
     }
-    
-    logs[#logs + 1] = log
-    
-    -- Left click: select and show code
-    local leftClickConn = Button.MouseButton1Click:Connect(function()
-        logthread(running())
-        eventSelect(RemoteTemplate)
-        log.GenScript = genScript(log.Remote, log.args)
-        if data.blocked then
-            log.GenScript = "-- THIS REMOTE WAS PREVENTED FROM FIRING TO THE SERVER\n\n" .. log.GenScript
+
+    -- Generate script immediately (non-blocking)
+    logThread(task.defer(function()
+        local ok, result = pcall(genScript, remote, log.args)
+        log.GenScript = ok and result or ("-- Generation failed: " .. tostring(result))
+        if log.Blocked then
+            log.GenScript = "-- THIS REMOTE WAS BLOCKED FROM FIRING TO SERVER\n\n" .. log.GenScript
         end
-        if selected == log and RemoteTemplate then
-            eventSelect(RemoteTemplate)
+        if selected == log and codebox then
+            codebox:setRaw(log.GenScript)
         end
+    end))
+
+    -- Left click: select
+    btn.MouseButton1Click:Connect(function()
+        SelectLog(log)
+        if codebox then codebox:setRaw(log.GenScript) end
     end)
-    
-    -- Right click: show context menu
-    local rightClickConn = Button.MouseButton2Click:Connect(function()
-        log.GenScript = genScript(log.Remote, log.args)
-        if data.blocked then
-            log.GenScript = "-- THIS REMOTE WAS PREVENTED FROM FIRING TO THE SERVER\n\n" .. log.GenScript
-        end
+
+    -- Right click: context menu
+    btn.MouseButton2Click:Connect(function()
         selected = log
-        local mousePos = UserInputService:GetMouseLocation()
-        ShowContextMenu(log, mousePos)
+        ShowCtxForLog(log)
     end)
-    
-    -- Long press for mobile
+
+    -- Mobile long press
     if isMobile then
-        local pressStart = 0
-        Button.MouseButton1Down:Connect(function()
-            pressStart = tick()
-        end)
-        Button.MouseButton1Up:Connect(function()
-            if tick() - pressStart > 0.5 then
-                log.GenScript = genScript(log.Remote, log.args)
+        local pressT = 0
+        btn.MouseButton1Down:Connect(function() pressT = tick() end)
+        btn.MouseButton1Up:Connect(function()
+            if tick() - pressT >= 0.45 then
                 selected = log
-                local mousePos = UserInputService:GetMouseLocation()
-                ShowContextMenu(log, mousePos)
+                ShowCtxForLog(log)
             end
         end)
     end
-    
-    layoutOrderNum -= 1
-    table.insert(remoteLogs, 1, { leftClickConn, RemoteTemplate })
-    clean()
-    updateRemoteCanvas()
+
+    table.insert(logs, log)
+    layoutOrder -= 1
+    table.insert(remoteLogs, 1, {frame})
+
+    -- Cleanup old logs
+    local max = getgenv().HOLTSPY_MaxRemotes or 500
+    if #remoteLogs > max then
+        for i = max, #remoteLogs do
+            local v = remoteLogs[i]
+            if v[1] and v[1].Parent then v[1]:Destroy() end
+        end
+        while #remoteLogs > max do
+            table.remove(remoteLogs, #remoteLogs)
+        end
+        while #logs > max do
+            table.remove(logs, #logs)
+        end
+    end
 end
 
 -- ============================================================
--- SEARCH FILTER
+-- SEARCH
 -- ============================================================
 
 SearchBar:GetPropertyChangedSignal("Text"):Connect(function()
-    local query = SearchBar.Text:lower()
+    local q = SearchBar.Text:lower()
     for _, child in ipairs(LogList:GetChildren()) do
-        if child:IsA("Frame") and child.Name == "RemoteTemplate" then
-            local textLabel = child:FindFirstChild("Text")
-            if textLabel then
-                if query == "" or textLabel.Text:lower():find(query, 1, true) then
-                    child.Visible = true
-                else
-                    child.Visible = false
-                end
+        if child:IsA("Frame") and child.Name == "RemoteLog" then
+            local lbl = child:FindFirstChildWhichIsA("TextLabel")
+            if lbl then
+                child.Visible = q == "" or lbl.Text:lower():find(q, 1, true) ~= nil
             end
         end
     end
 end)
 
--- This is the end of part 1
-
-   -- ============================================================
--- SCRIPT GENERATION AND SERIALIZATION
+-- ============================================================
+-- BUTTONS
 -- ============================================================
 
-function genScript(remote, args)
-    prevTables = {}
-    local gen = ""
-    if #args > 0 then
-        xpcall(function()
-            gen = "local args = " .. LazyFix.Convert(args, true) .. "\n"
-        end, function(err)
-            gen = gen .. "-- Serialization Error: " .. err .. "\nlocal args = {"
-            xpcall(function()
-                for i, v in next, args do
-                    gen = gen .. "\n    [" .. tostring(i) .. "] = " .. tostring(v) .. ","
-                end
-                gen = gen .. "\n}\n"
-            end, function()
-                gen = gen .. "}\n-- Critical decompilation failure."
-            end)
-        end)
-        if not remote:IsDescendantOf(game) and not getnilrequired then
-            gen = "function getNil(name, class) for _, v in next, getnilinstances() do if v.ClassName == class and v.Name == name then return v; end end end\n\n" .. gen
-        end
-        if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
-            gen = gen .. LazyFix.ConvertKnown("Instance", remote) .. ":FireServer(unpack(args))"
-        elseif remote:IsA("RemoteFunction") then
-            gen = gen .. "local res = " .. LazyFix.ConvertKnown("Instance", remote) .. ":InvokeServer(unpack(args))\nprint(res)"
-        end
-    else
-        if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
-            gen = gen .. LazyFix.ConvertKnown("Instance", remote) .. ":FireServer()"
-        elseif remote:IsA("RemoteFunction") then
-            gen = gen .. "local res = " .. LazyFix.ConvertKnown("Instance", remote) .. ":InvokeServer()\nprint(res)"
-        end
-    end
-    prevTables = {}
-    return gen
+local function NewBtn(name, tip, onClick)
+    local f = New("Frame", {
+        Parent           = BtnScroll,
+        BackgroundTransparency = 1,
+        Size             = UDim2.new(0, BTN_W, 0, BTN_H),
+    })
+    local b = New("TextButton", {
+        Parent           = f,
+        BackgroundColor3 = T.SurfaceLL,
+        BorderSizePixel  = 0,
+        Size             = UDim2.new(1, 0, 1, 0),
+        Font             = Enum.Font.Gotham,
+        Text             = name,
+        TextColor3       = T.Text,
+        TextSize         = FONT_SM,
+        AutoButtonColor  = false,
+        TextTruncate     = Enum.TextTruncate.AtEnd,
+        ZIndex           = 13,
+    })
+    Corner(4, b)
+    New("Frame", {
+        Parent           = b,
+        BackgroundColor3 = T.Accent,
+        BorderSizePixel  = 0,
+        Position         = UDim2.new(0, 0, 1, -2),
+        Size             = UDim2.new(1, 0, 0, 2),
+        ZIndex           = 14,
+    })
+    b.MouseEnter:Connect(function()
+        TweenService:Create(b, TweenInfo.new(0.12), {BackgroundColor3 = T.SurfaceL}):Play()
+        ShowTip(tip)
+    end)
+    b.MouseLeave:Connect(function()
+        TweenService:Create(b, TweenInfo.new(0.12), {BackgroundColor3 = T.SurfaceLL}):Play()
+        HideTip()
+    end)
+    b.MouseButton1Click:Connect(function()
+        logThread(running())
+        onClick()
+    end)
 end
 
-function v2s(v, l, p, n, vtv, i, pt, path, tables, tI)
-    local vtypeof = typeof(v)
-    if vtypeof == "number" then
-        return tostring(v)
-    elseif vtypeof == "boolean" then
-        return tostring(v)
-    elseif vtypeof == "string" then
-        return '"' .. v .. '"'
-    elseif vtypeof == "Instance" then
-        return i2p(v)
-    elseif vtypeof == "table" then
-        return t2s(v, l, p, n, vtv, i, pt, path, tables, tI)
-    end
-    return tostring(v)
-end
-
-function t2s(t, l, p, n, vtv, i, pt, path, tables, tI)
-    if not l then l = 0 end
-    if not tables then tables = {} end
-    if table.find(tables, t) then return "{}" end
-    table.insert(tables, t)
-    local s = "{"
-    l = l + indent
-    for k, v in next, t do
-        s = s .. "\n" .. string.rep(" ", l) .. "[" .. v2s(k, l, p, n, vtv, k, t, path, tables, tI) .. "] = " .. v2s(v, l, p, n, vtv, k, t, path, tables, tI) .. ","
-    end
-    if #s > 1 then s = s:sub(1, #s - 1) end
-    if next(t) then s = s .. "\n" .. string.rep(" ", l - indent) end
-    return s .. "}"
-end
-
-function i2p(i)
-    if not i then return "nil" end
-    local path = ""
-    local obj = i
-    while obj and obj ~= game do
-        local name = obj.Name
-        if name:match("^[%a_][%w_]*$") then
-            path = "." .. name .. path
-        else
-            path = '["' .. name .. '"]' .. path
-        end
-        obj = obj.Parent
-    end
-    return "game" .. path
-end
-
--- ============================================================
--- TASK SCHEDULER AND HANDLERS
--- ============================================================
-
-local function taskscheduler()
-    if not toggle then
-        scheduled = {}
-        return
-    end
-    if #scheduled > 0 then
-        local current = scheduled[1]
-        table.remove(scheduled, 1)
-        if type(current) == "table" and type(current[1]) == "function" then
-            pcall(unpack(current))
-        end
-    end
-end
-
-function remoteHandler(data)
-    if configs.autoblock then
-        local id = data.id
-        if excluding[id] then return end
-        if not history[id] then history[id] = { badOccurances = 0, lastCall = tick() } end
-        if tick() - history[id].lastCall < 0.2 then
-            history[id].badOccurances = history[id].badOccurances + 1
-        else
-            history[id].badOccurances = 0
-        end
-        if history[id].badOccurances > 10 then
-            excluding[id] = true
-            return
-        end
-        history[id].lastCall = tick()
-    end
-
-    if (data.remote:IsA("RemoteEvent") or data.remote:IsA("UnreliableRemoteEvent")) then
-        newRemote("event", data)
-    elseif data.remote:IsA("RemoteFunction") then
-        newRemote("function", data)
-    end
-end
-
--- ============================================================
--- HOOKING LOGIC
--- ============================================================
-
-local function newindex(method, originalfunction, ...)
-    local args = { ... }
-    local remote = args[1]
-    if typeof(remote) == "Instance" and (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") or remote:IsA("UnreliableRemoteEvent")) then
-        if not configs.logcheckcaller and checkcaller() then return originalfunction(...) end
-        local id = ThreadGetDebugId(remote)
-        if blocklist[id] or blocklist[remote.Name] then return end
-        if not blacklist[id] and not blacklist[remote.Name] then
-            local callargs = {}
-            for i = 2, #args do table.insert(callargs, args[i]) end
-            local data = {
-                method = method,
-                remote = remote,
-                args = deepclone(callargs),
-                id = id,
-                metamethod = "__index",
-                callingscript = getcallingscript()
-            }
-            schedule(remoteHandler, data)
-        end
-    end
-    return originalfunction(...)
-end
-
-local function namecallhook(...)
-    local method = getnamecallmethod()
-    local args = { ... }
-    local remote = args[1]
-    if (method == "FireServer" or method == "InvokeServer") and typeof(remote) == "Instance" then
-        if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") or remote:IsA("UnreliableRemoteEvent") then
-            if not configs.logcheckcaller and checkcaller() then return originalnamecall(...) end
-            local id = ThreadGetDebugId(remote)
-            if blocklist[id] or blocklist[remote.Name] then return end
-            if not blacklist[id] and not blacklist[remote.Name] then
-                local callargs = {}
-                for i = 2, #args do table.insert(callargs, args[i]) end
-                local data = {
-                    method = method,
-                    remote = remote,
-                    args = deepclone(callargs),
-                    id = id,
-                    metamethod = "__namecall",
-                    callingscript = getcallingscript()
-                }
-                schedule(remoteHandler, data)
-            end
-        end
-    end
-    return originalnamecall(...)
-end
-
-function toggleSpy()
-    if not toggle then
-        local oldnamecall
-        if synv3 then
-            oldnamecall = hook(getrawmetatable(game).__namecall, namecallhook)
-            originalEvent = hook(Instance.new("RemoteEvent").FireServer, function(...) return newindex("FireServer", originalEvent, ...) end)
-            originalFunction = hook(Instance.new("RemoteFunction").InvokeServer, function(...) return newindex("InvokeServer", originalFunction, ...) end)
-        else
-            oldnamecall = hookmetamethod(game, "__namecall", namecallhook)
-            originalEvent = hookfunction(Instance.new("RemoteEvent").FireServer, function(...) return newindex("FireServer", originalEvent, ...) end)
-            originalFunction = hookfunction(Instance.new("RemoteFunction").InvokeServer, function(...) return newindex("InvokeServer", originalFunction, ...) end)
-        end
-        originalnamecall = originalnamecall or oldnamecall
-    else
-        -- Shutdown hooks logic (simple restore)
-    end
-end
-
-function toggleSpyMethod()
-    toggleSpy()
-    toggle = not toggle
-end
-
-function shutdown()
-    if schedulerconnect then schedulerconnect:Disconnect() end
-    for _, con in pairs(connections) do con:Disconnect() end
-    HoltSpyGui:Destroy()
-    Storage:Destroy()
-    getgenv().HoltSpyExecuted = false
-end
-
--- ============================================================
--- MAIN BUTTON DEFINITIONS
--- ============================================================
-
-newButton("Copy Code", function() return "Copy the generated code for the selected remote" end, function()
+NewBtn("Copy Code", "Copy generated code for selected remote", function()
     if selected and selected.GenScript then
         setclipboard(selected.GenScript)
     end
 end)
 
-newButton("Run Code", function() return "Execute the selected remote once" end, function()
-    if selected and selected.Remote then
-        xpcall(function()
-            if selected.Remote:IsA("RemoteEvent") then
-                selected.Remote:FireServer(unpack(selected.args))
-            else
-                selected.Remote:InvokeServer(unpack(selected.args))
-            end
-        end, function() end)
+NewBtn("Run Code", "Execute the selected remote once", function()
+    if not selected or not selected.Remote then return end
+    xpcall(function()
+        if selected.Remote:IsA("RemoteEvent") or selected.Remote:IsA("UnreliableRemoteEvent") then
+            selected.Remote:FireServer(table.unpack(selected.args))
+        elseif selected.Remote:IsA("RemoteFunction") then
+            selected.Remote:InvokeServer(table.unpack(selected.args))
+        end
+    end, function(e) warn("[Holt Spy] " .. e) end)
+end)
+
+NewBtn("Edit Code", "Open editor to modify this remote call", function()
+    if not selected then return end
+    EditInput.Text = selected.GenScript or ""
+    EditPanel.Visible = true
+    ShowOverlay()
+    local sc, cc, oc
+    sc = EditSaveBtn.MouseButton1Click:Connect(function()
+        table.insert(modifiedCodes, {
+            Name = selected.Name,
+            Code = EditInput.Text,
+            Time = os.date("%H:%M:%S"),
+        })
+        HideOverlay(); EditPanel.Visible = false
+        sc:Disconnect(); cc:Disconnect(); oc:Disconnect()
+    end)
+    cc = EditCloseBtn.MouseButton1Click:Connect(function()
+        HideOverlay(); EditPanel.Visible = false
+        sc:Disconnect(); cc:Disconnect(); oc:Disconnect()
+    end)
+    oc = Overlay.MouseButton1Click:Connect(function()
+        HideOverlay(); EditPanel.Visible = false
+        sc:Disconnect(); cc:Disconnect(); oc:Disconnect()
+    end)
+end)
+
+NewBtn("Modified", "View your saved modified scripts", function()
+    RefreshModPanel()
+    ModPanel.Visible = true
+    ShowOverlay()
+end)
+
+NewBtn("Copy Loop", "Copy a looped version of the selected remote", function()
+    if selected and selected.GenScript then
+        local lc = "while task.wait(0.1) do\n    " .. selected.GenScript:gsub("\n", "\n    ") .. "\nend"
+        setclipboard(lc)
     end
 end)
 
-newButton("Edit Code", function() return "Open the editor to modify this remote call" end, function()
-    if selected then
-        EditCodeInput.Text = selected.GenScript or ""
-        EditCodePanel.Visible = true
-        Overlay.Visible = true
-        
-        local sConn, cConn
-        sConn = EditCodeSaveBtn.MouseButton1Click:Connect(function()
-            table.insert(modifiedCodes, {
-                Name = selected.Name,
-                Code = EditCodeInput.Text,
-                Time = os.date("%H:%M:%S"),
-                OriginalLog = selected
-            })
-            EditCodePanel.Visible = false
-            Overlay.Visible = false
-            sConn:Disconnect()
-            cConn:Disconnect()
-        end)
-        cConn = EditCodeCloseBtn.MouseButton1Click:Connect(function()
-            EditCodePanel.Visible = false
-            Overlay.Visible = false
-            sConn:Disconnect()
-            cConn:Disconnect()
-        end)
+NewBtn("Run Loop", "Run the selected remote in a loop", function()
+    if not selected or not selected.Remote then return end
+    local lid = (selected.DebugId or tostring(selected.Remote)) .. "_rl_" .. tostring(tick())
+    activeLoops[lid] = true
+    logThread(spawn(function()
+        while activeLoops[lid] do
+            xpcall(function()
+                if selected.Remote:IsA("RemoteEvent") or selected.Remote:IsA("UnreliableRemoteEvent") then
+                    selected.Remote:FireServer(table.unpack(selected.args))
+                elseif selected.Remote:IsA("RemoteFunction") then
+                    selected.Remote:InvokeServer(table.unpack(selected.args))
+                end
+            end, function() end)
+            task.wait(0.1)
+        end
+    end))
+end)
+
+NewBtn("Stop Loops", "Stop all active loops", function()
+    for k in pairs(activeLoops) do activeLoops[k] = false end
+    table.clear(activeLoops)
+end)
+
+NewBtn("Clr Logs", "Clear all remote logs", function()
+    for _, l in ipairs(logs) do
+        if l.Log and l.Log.Parent then l.Log:Destroy() end
+    end
+    table.clear(logs)
+    table.clear(remoteLogs)
+    selected = nil
+    if codebox then codebox:setRaw("") end
+end)
+
+NewBtn("Exclude", "Exclude selected remote by instance", function()
+    if selected and selected.DebugId then
+        blacklist[selected.DebugId] = true
     end
 end)
 
-newButton("Modified", function() return "View and run your modified code snippets" end, function()
-    RefreshModifiedList()
-    ModifiedPanel.Visible = true
-    Overlay.Visible = true
+NewBtn("Block", "Block selected remote from firing", function()
+    if selected and selected.DebugId then
+        blocklist[selected.DebugId] = true
+    end
 end)
 
-newButton("Clr Logs", function() return "Clear the remote log list" end, function()
-    for _, log in ipairs(logs) do log.Log:Destroy() end
-    logs = {}
-    updateRemoteCanvas()
+NewBtn("Clr Blacks", "Clear blacklist and blocklist", function()
+    table.clear(blacklist)
+    table.clear(blocklist)
 end)
 
-newButton("Autoblock", function() return "Toggle automatic blocking of spammy remotes" end, function()
+NewBtn("Autoblock", "Toggle auto-blocking of spammy remotes", function()
     configs.autoblock = not configs.autoblock
+    table.clear(history)
+    table.clear(excluding)
 end)
 
-newButton("Settings", function() return "Toggle various spy settings" end, function()
-    -- Simple toggle for demonstration
+NewBtn("Log Caller", "Toggle logging of client-fired remotes", function()
     configs.logcheckcaller = not configs.logcheckcaller
 end)
 
+NewBtn("Discord", "Join the Holt Spy Discord server", function()
+    setclipboard("https://discord.gg/E7Tfjgruck")
+    local ok, resp = pcall(function()
+        return (request or syn and syn.request)({
+            Url    = "http://127.0.0.1:6463/rpc?v=1",
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json",
+                Origin           = "https://discord.com"
+            },
+            Body = HttpService:JSONEncode({
+                cmd   = "INVITE_BROWSER",
+                nonce = HttpService:GenerateGUID(false),
+                args  = {code = "E7Tfjgruck"}
+            })
+        })
+    end)
+end)
+
 -- ============================================================
--- INITIALIZATION
+-- REMOTE HANDLER
+-- ============================================================
+
+local function remoteHandler(data)
+    if not data or not data.remote then return end
+
+    local id = data.id
+    if not id then return end
+
+    -- Blacklist check
+    if blacklist[id] or blacklist[data.remote.Name] then return end
+
+    -- Autoblock
+    if configs.autoblock then
+        if excluding[id] then return end
+        if not history[id] then history[id] = {count = 0, last = tick()} end
+        local h = history[id]
+        if tick() - h.last < 0.5 then
+            h.count += 1
+            if h.count > 15 then
+                excluding[id] = true
+                return
+            end
+        else
+            h.count = 0
+            h.last = tick()
+        end
+    end
+
+    if blocklist[id] or blocklist[data.remote.Name] then
+        data.blockcheck = true
+    end
+
+    local rtype = "event"
+    if data.remote:IsA("RemoteFunction") then rtype = "function" end
+    AddRemoteLog(rtype, data)
+end
+
+-- ============================================================
+-- SCHEDULER
+-- ============================================================
+
+local function schedule(f, ...)
+    table.insert(scheduled, {f, ...})
+end
+
+local function taskScheduler()
+    if #scheduled == 0 then return end
+    local max = getgenv().HOLTSPY_MaxRemotes or 500
+    if #scheduled > max + 200 then
+        -- Trim excess
+        while #scheduled > max do
+            table.remove(scheduled, #scheduled)
+        end
+    end
+    local current = table.remove(scheduled, 1)
+    if type(current) == "table" and type(current[1]) == "function" then
+        local ok, err = pcall(table.unpack(current))
+        if not ok then warn("[Holt Spy Scheduler] " .. tostring(err)) end
+    end
+end
+
+-- ============================================================
+-- HOOKS
+-- ============================================================
+
+-- The namecall hook function
+local namecallFunc = newcclosure(function(...)
+    local method = getnamecallmethod()
+    if method == "FireServer" or method == "InvokeServer"
+    or method == "fireServer" or method == "invokeServer" then
+        local self = ...
+        if typeof(self) == "Instance" and (
+            self:IsA("RemoteEvent") or
+            self:IsA("RemoteFunction") or
+            self:IsA("UnreliableRemoteEvent")
+        ) then
+            if not configs.logcheckcaller and checkcaller() then
+                return originalNamecall(...)
+            end
+
+            local ok, id = pcall(SafeDebugId, self)
+            local safeId = ok and id or tostring(self)
+
+            -- Block check
+            if blocklist[safeId] or blocklist[self.Name] then
+                return -- don't fire, don't log
+            end
+
+            if not blacklist[safeId] and not blacklist[self.Name] then
+                local allArgs = {...}
+                local passedArgs = {}
+                for i = 2, #allArgs do
+                    passedArgs[i - 1] = allArgs[i]
+                end
+
+                local safeCopy
+                local ok2, copied = pcall(deepclone, passedArgs)
+                safeCopy = ok2 and copied or passedArgs
+
+                local cs = nil
+                pcall(function() cs = getcallingscript() end)
+                if cs then pcall(function() cs = cloneref(cs) end) end
+
+                local data = {
+                    method        = method,
+                    remote        = self,
+                    args          = safeCopy,
+                    id            = safeId,
+                    callingscript = cs,
+                    blockcheck    = false,
+                }
+                schedule(remoteHandler, data)
+            end
+        end
+    end
+    return originalNamecall(...)
+end)
+
+-- FireServer hook
+local function makeFireHook(origFn)
+    return newcclosure(function(self, ...)
+        if typeof(self) == "Instance" and (
+            self:IsA("RemoteEvent") or self:IsA("UnreliableRemoteEvent")
+        ) then
+            if not configs.logcheckcaller and checkcaller() then
+                return origFn(self, ...)
+            end
+
+            local ok, id = pcall(SafeDebugId, self)
+            local safeId = ok and id or tostring(self)
+
+            if blocklist[safeId] or blocklist[self.Name] then return end
+
+            if not blacklist[safeId] and not blacklist[self.Name] then
+                local passedArgs = {...}
+                local ok2, copied = pcall(deepclone, passedArgs)
+                local cs = nil
+                pcall(function() cs = getcallingscript() end)
+                if cs then pcall(function() cs = cloneref(cs) end) end
+
+                schedule(remoteHandler, {
+                    method        = "FireServer",
+                    remote        = self,
+                    args          = ok2 and copied or passedArgs,
+                    id            = safeId,
+                    callingscript = cs,
+                    blockcheck    = false,
+                })
+            end
+        end
+        return origFn(self, ...)
+    end)
+end
+
+-- InvokeServer hook
+local function makeInvokeHook(origFn)
+    return newcclosure(function(self, ...)
+        if typeof(self) == "Instance" and self:IsA("RemoteFunction") then
+            if not configs.logcheckcaller and checkcaller() then
+                return origFn(self, ...)
+            end
+
+            local ok, id = pcall(SafeDebugId, self)
+            local safeId = ok and id or tostring(self)
+
+            if blocklist[safeId] or blocklist[self.Name] then return origFn(self, ...) end
+
+            if not blacklist[safeId] and not blacklist[self.Name] then
+                local passedArgs = {...}
+                local ok2, copied = pcall(deepclone, passedArgs)
+                local cs = nil
+                pcall(function() cs = getcallingscript() end)
+                if cs then pcall(function() cs = cloneref(cs) end) end
+
+                schedule(remoteHandler, {
+                    method        = "InvokeServer",
+                    remote        = self,
+                    args          = ok2 and copied or passedArgs,
+                    id            = safeId,
+                    callingscript = cs,
+                    blockcheck    = false,
+                })
+            end
+        end
+        return origFn(self, ...)
+    end)
+end
+
+local function enableHooks()
+    -- Hook __namecall (catches all :FireServer and :InvokeServer calls)
+    local oldNC
+    if hookmetamethod then
+        oldNC = hookmetamethod(game, "__namecall", namecallFunc)
+    elseif hookfunction then
+        local mt = getrawmetatable(game)
+        local wasRO = isreadonly(mt)
+        if wasRO then makewritable(mt) end
+        oldNC = mt.__namecall
+        mt.__namecall = namecallFunc
+        if wasRO then makereadonly(mt) end
+    end
+    originalNamecall = oldNC
+
+    -- Also hook the explicit method functions as a fallback
+    local fireHook    = makeFireHook(originalEvent)
+    local unreliHook  = makeFireHook(originalUnreliable)
+    local invokeHook  = makeInvokeHook(originalFunction)
+
+    if hookfunction then
+        hookfunction(originalEvent,     fireHook)
+        hookfunction(originalUnreliable, unreliHook)
+        hookfunction(originalFunction,  invokeHook)
+    end
+end
+
+local function disableHooks()
+    if originalNamecall then
+        if hookmetamethod then
+            hookmetamethod(game, "__namecall", originalNamecall)
+        elseif hookfunction then
+            local mt = getrawmetatable(game)
+            local wasRO = isreadonly(mt)
+            if wasRO then makewritable(mt) end
+            mt.__namecall = originalNamecall
+            if wasRO then makereadonly(mt) end
+        end
+    end
+    if hookfunction then
+        hookfunction(originalEvent,     originalEvent)
+        hookfunction(originalUnreliable, originalUnreliable)
+        hookfunction(originalFunction,  originalFunction)
+    end
+end
+
+-- ============================================================
+-- SHUTDOWN
+-- ============================================================
+
+local function Shutdown()
+    if schedulerConn then schedulerConn:Disconnect() end
+    for _, c in pairs(connections) do
+        if typeof(c) == "RBXScriptConnection" then c:Disconnect() end
+    end
+    for _, t in ipairs(running_threads) do
+        if type(t) == "thread" and cstatus(t) ~= "dead" then
+            pcall(cclose, t)
+        end
+    end
+    for k in pairs(activeLoops) do activeLoops[k] = false end
+    pcall(disableHooks)
+    pcall(function() Screen:Destroy() end)
+    pcall(function() Storage:Destroy() end)
+    getgenv().HoltSpyExecuted = false
+    getgenv().HoltSpyShutdown = nil
+end
+
+-- ============================================================
+-- CLOSE BUTTON
+-- ============================================================
+
+CloseButton and CloseButton.MouseButton1Click:Connect(Shutdown)
+-- CloseBtn is the actual button var name used above
+local _closeConn = CloseBtn.MouseButton1Click:Connect(Shutdown)
+
+-- ============================================================
+-- TITLE BUTTON: toggle spy on/off
+-- ============================================================
+
+local spyActive = false
+
+local function ToggleSpy()
+    if not spyActive then
+        enableHooks()
+        spyActive = true
+        TweenService:Create(TitleBtn, TweenInfo.new(0.3), {TextColor3 = T.Success}):Play()
+    else
+        disableHooks()
+        spyActive = false
+        TweenService:Create(TitleBtn, TweenInfo.new(0.3), {TextColor3 = T.AccentL}):Play()
+    end
+end
+
+TitleBtn.MouseButton1Click:Connect(ToggleSpy)
+
+TitleBtn.MouseEnter:Connect(function()
+    TweenService:Create(TitleBtn, TweenInfo.new(0.15), {
+        TextColor3 = spyActive and T.Error or T.Success
+    }):Play()
+end)
+TitleBtn.MouseLeave:Connect(function()
+    TweenService:Create(TitleBtn, TweenInfo.new(0.15), {
+        TextColor3 = spyActive and T.Success or T.AccentL
+    }):Play()
+end)
+
+-- ============================================================
+-- INIT
 -- ============================================================
 
 local function Init()
-    ShowLoadingScreen()
-    
-    codebox = Highlight.new(CodeBox)
-    codebox:setRaw("-- Holt Spy initialized\n-- Select a remote to view code\n-- Right-click (or long press) for advanced options")
-    
-    TopBar.InputBegan:Connect(backgroundUserInput)
-    CloseButton.MouseButton1Click:Connect(shutdown)
-    MinimizeButton.MouseButton1Click:Connect(function() toggleMinimize() end)
-    MaximizeButton.MouseButton1Click:Connect(function() toggleSideTray() end)
-    TitleButton.MouseButton1Click:Connect(onToggleButtonClick)
-    
-    schedulerconnect = RunService.Heartbeat:Connect(taskscheduler)
-    
-    getgenv().HoltSpyExecuted = true
-    getgenv().HoltSpyShutdown = shutdown
-    HoltSpyGui.Enabled = true
-    
-    -- Load GUI into protected container
-    if gethui then
-        HoltSpyGui.Parent = gethui()
-    elseif syn and syn.protect_gui then
-        syn.protect_gui(HoltSpyGui)
-        HoltSpyGui.Parent = CoreGui
-    else
-        HoltSpyGui.Parent = CoreGui
+    if not RunService:IsClient() then
+        warn("[Holt Spy] Must run on client!")
+        return
     end
-    
-    toggleSpyMethod() -- Start spying
-    bringBackOnResize()
+
+    getgenv().HoltSpyExecuted = true
+    getgenv().HoltSpyShutdown = Shutdown
+
+    -- Parent GUI
+    local guiParent = (gethui and gethui())
+        or (syn and syn.protect_gui and syn.protect_gui(Screen) and CoreGui)
+        or CoreGui
+    Screen.Parent = guiParent
+    Screen.Enabled = true
+
+    -- Show loading (non-blocking)
+    logThread(spawn(ShowLoadingScreen))
+
+    -- Setup dragging
+    setupDrag()
+
+    -- Init codebox (Highlight)
+    codebox = Highlight.new(CodeFrame)
+    codebox:setRaw("-- Holt Spy ready\n-- Click a remote in the list to view code\n-- Right-click for advanced options\n-- discord.gg/E7Tfjgruck")
+
+    -- Start scheduler
+    schedulerConn = RunService.Heartbeat:Connect(taskScheduler)
+
+    -- Start spying immediately
+    ToggleSpy()
+
+    -- Generation table for known instances
+    logThread(spawn(function()
+        local lp = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() and Players.LocalPlayer
+        if lp then
+            generation[SafeDebugId(lp)] = 'game:GetService("Players").LocalPlayer'
+        end
+    end))
+
+    -- Keep window in bounds on viewport resize
+    workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+        local vp = workspace.CurrentCamera.ViewportSize
+        local pos = Background.AbsolutePosition
+        local newX = math.clamp(pos.X, 0, math.max(0, vp.X - WIN_W))
+        local newY = math.clamp(pos.Y, 0, math.max(0, vp.Y - WIN_H - GuiInset.Y))
+        Background.Position = UDim2.new(0, newX, 0, newY)
+    end)
 end
 
 Init()
-
--- Loadstring Support:
--- To use this in your HoltSpy.lua file in a private repo:
--- loadstring(game:HttpGet("https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main/HoltSpy.lua"))()
-
--- Official Discord: https://discord.gg/E7Tfjgruck
