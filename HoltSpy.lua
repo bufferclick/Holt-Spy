@@ -1972,3 +1972,333 @@ SearchBar:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 -- This is the end of part 1
+
+   -- ============================================================
+-- SCRIPT GENERATION AND SERIALIZATION
+-- ============================================================
+
+function genScript(remote, args)
+    prevTables = {}
+    local gen = ""
+    if #args > 0 then
+        xpcall(function()
+            gen = "local args = " .. LazyFix.Convert(args, true) .. "\n"
+        end, function(err)
+            gen = gen .. "-- Serialization Error: " .. err .. "\nlocal args = {"
+            xpcall(function()
+                for i, v in next, args do
+                    gen = gen .. "\n    [" .. tostring(i) .. "] = " .. tostring(v) .. ","
+                end
+                gen = gen .. "\n}\n"
+            end, function()
+                gen = gen .. "}\n-- Critical decompilation failure."
+            end)
+        end)
+        if not remote:IsDescendantOf(game) and not getnilrequired then
+            gen = "function getNil(name, class) for _, v in next, getnilinstances() do if v.ClassName == class and v.Name == name then return v; end end end\n\n" .. gen
+        end
+        if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
+            gen = gen .. LazyFix.ConvertKnown("Instance", remote) .. ":FireServer(unpack(args))"
+        elseif remote:IsA("RemoteFunction") then
+            gen = gen .. "local res = " .. LazyFix.ConvertKnown("Instance", remote) .. ":InvokeServer(unpack(args))\nprint(res)"
+        end
+    else
+        if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
+            gen = gen .. LazyFix.ConvertKnown("Instance", remote) .. ":FireServer()"
+        elseif remote:IsA("RemoteFunction") then
+            gen = gen .. "local res = " .. LazyFix.ConvertKnown("Instance", remote) .. ":InvokeServer()\nprint(res)"
+        end
+    end
+    prevTables = {}
+    return gen
+end
+
+function v2s(v, l, p, n, vtv, i, pt, path, tables, tI)
+    local vtypeof = typeof(v)
+    if vtypeof == "number" then
+        return tostring(v)
+    elseif vtypeof == "boolean" then
+        return tostring(v)
+    elseif vtypeof == "string" then
+        return '"' .. v .. '"'
+    elseif vtypeof == "Instance" then
+        return i2p(v)
+    elseif vtypeof == "table" then
+        return t2s(v, l, p, n, vtv, i, pt, path, tables, tI)
+    end
+    return tostring(v)
+end
+
+function t2s(t, l, p, n, vtv, i, pt, path, tables, tI)
+    if not l then l = 0 end
+    if not tables then tables = {} end
+    if table.find(tables, t) then return "{}" end
+    table.insert(tables, t)
+    local s = "{"
+    l = l + indent
+    for k, v in next, t do
+        s = s .. "\n" .. string.rep(" ", l) .. "[" .. v2s(k, l, p, n, vtv, k, t, path, tables, tI) .. "] = " .. v2s(v, l, p, n, vtv, k, t, path, tables, tI) .. ","
+    end
+    if #s > 1 then s = s:sub(1, #s - 1) end
+    if next(t) then s = s .. "\n" .. string.rep(" ", l - indent) end
+    return s .. "}"
+end
+
+function i2p(i)
+    if not i then return "nil" end
+    local path = ""
+    local obj = i
+    while obj and obj ~= game do
+        local name = obj.Name
+        if name:match("^[%a_][%w_]*$") then
+            path = "." .. name .. path
+        else
+            path = '["' .. name .. '"]' .. path
+        end
+        obj = obj.Parent
+    end
+    return "game" .. path
+end
+
+-- ============================================================
+-- TASK SCHEDULER AND HANDLERS
+-- ============================================================
+
+local function taskscheduler()
+    if not toggle then
+        scheduled = {}
+        return
+    end
+    if #scheduled > 0 then
+        local current = scheduled[1]
+        table.remove(scheduled, 1)
+        if type(current) == "table" and type(current[1]) == "function" then
+            pcall(unpack(current))
+        end
+    end
+end
+
+function remoteHandler(data)
+    if configs.autoblock then
+        local id = data.id
+        if excluding[id] then return end
+        if not history[id] then history[id] = { badOccurances = 0, lastCall = tick() } end
+        if tick() - history[id].lastCall < 0.2 then
+            history[id].badOccurances = history[id].badOccurances + 1
+        else
+            history[id].badOccurances = 0
+        end
+        if history[id].badOccurances > 10 then
+            excluding[id] = true
+            return
+        end
+        history[id].lastCall = tick()
+    end
+
+    if (data.remote:IsA("RemoteEvent") or data.remote:IsA("UnreliableRemoteEvent")) then
+        newRemote("event", data)
+    elseif data.remote:IsA("RemoteFunction") then
+        newRemote("function", data)
+    end
+end
+
+-- ============================================================
+-- HOOKING LOGIC
+-- ============================================================
+
+local function newindex(method, originalfunction, ...)
+    local args = { ... }
+    local remote = args[1]
+    if typeof(remote) == "Instance" and (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") or remote:IsA("UnreliableRemoteEvent")) then
+        if not configs.logcheckcaller and checkcaller() then return originalfunction(...) end
+        local id = ThreadGetDebugId(remote)
+        if blocklist[id] or blocklist[remote.Name] then return end
+        if not blacklist[id] and not blacklist[remote.Name] then
+            local callargs = {}
+            for i = 2, #args do table.insert(callargs, args[i]) end
+            local data = {
+                method = method,
+                remote = remote,
+                args = deepclone(callargs),
+                id = id,
+                metamethod = "__index",
+                callingscript = getcallingscript()
+            }
+            schedule(remoteHandler, data)
+        end
+    end
+    return originalfunction(...)
+end
+
+local function namecallhook(...)
+    local method = getnamecallmethod()
+    local args = { ... }
+    local remote = args[1]
+    if (method == "FireServer" or method == "InvokeServer") and typeof(remote) == "Instance" then
+        if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") or remote:IsA("UnreliableRemoteEvent") then
+            if not configs.logcheckcaller and checkcaller() then return originalnamecall(...) end
+            local id = ThreadGetDebugId(remote)
+            if blocklist[id] or blocklist[remote.Name] then return end
+            if not blacklist[id] and not blacklist[remote.Name] then
+                local callargs = {}
+                for i = 2, #args do table.insert(callargs, args[i]) end
+                local data = {
+                    method = method,
+                    remote = remote,
+                    args = deepclone(callargs),
+                    id = id,
+                    metamethod = "__namecall",
+                    callingscript = getcallingscript()
+                }
+                schedule(remoteHandler, data)
+            end
+        end
+    end
+    return originalnamecall(...)
+end
+
+function toggleSpy()
+    if not toggle then
+        local oldnamecall
+        if synv3 then
+            oldnamecall = hook(getrawmetatable(game).__namecall, namecallhook)
+            originalEvent = hook(Instance.new("RemoteEvent").FireServer, function(...) return newindex("FireServer", originalEvent, ...) end)
+            originalFunction = hook(Instance.new("RemoteFunction").InvokeServer, function(...) return newindex("InvokeServer", originalFunction, ...) end)
+        else
+            oldnamecall = hookmetamethod(game, "__namecall", namecallhook)
+            originalEvent = hookfunction(Instance.new("RemoteEvent").FireServer, function(...) return newindex("FireServer", originalEvent, ...) end)
+            originalFunction = hookfunction(Instance.new("RemoteFunction").InvokeServer, function(...) return newindex("InvokeServer", originalFunction, ...) end)
+        end
+        originalnamecall = originalnamecall or oldnamecall
+    else
+        -- Shutdown hooks logic (simple restore)
+    end
+end
+
+function toggleSpyMethod()
+    toggleSpy()
+    toggle = not toggle
+end
+
+function shutdown()
+    if schedulerconnect then schedulerconnect:Disconnect() end
+    for _, con in pairs(connections) do con:Disconnect() end
+    HoltSpyGui:Destroy()
+    Storage:Destroy()
+    getgenv().HoltSpyExecuted = false
+end
+
+-- ============================================================
+-- MAIN BUTTON DEFINITIONS
+-- ============================================================
+
+newButton("Copy Code", function() return "Copy the generated code for the selected remote" end, function()
+    if selected and selected.GenScript then
+        setclipboard(selected.GenScript)
+    end
+end)
+
+newButton("Run Code", function() return "Execute the selected remote once" end, function()
+    if selected and selected.Remote then
+        xpcall(function()
+            if selected.Remote:IsA("RemoteEvent") then
+                selected.Remote:FireServer(unpack(selected.args))
+            else
+                selected.Remote:InvokeServer(unpack(selected.args))
+            end
+        end, function() end)
+    end
+end)
+
+newButton("Edit Code", function() return "Open the editor to modify this remote call" end, function()
+    if selected then
+        EditCodeInput.Text = selected.GenScript or ""
+        EditCodePanel.Visible = true
+        Overlay.Visible = true
+        
+        local sConn, cConn
+        sConn = EditCodeSaveBtn.MouseButton1Click:Connect(function()
+            table.insert(modifiedCodes, {
+                Name = selected.Name,
+                Code = EditCodeInput.Text,
+                Time = os.date("%H:%M:%S"),
+                OriginalLog = selected
+            })
+            EditCodePanel.Visible = false
+            Overlay.Visible = false
+            sConn:Disconnect()
+            cConn:Disconnect()
+        end)
+        cConn = EditCodeCloseBtn.MouseButton1Click:Connect(function()
+            EditCodePanel.Visible = false
+            Overlay.Visible = false
+            sConn:Disconnect()
+            cConn:Disconnect()
+        end)
+    end
+end)
+
+newButton("Modified", function() return "View and run your modified code snippets" end, function()
+    RefreshModifiedList()
+    ModifiedPanel.Visible = true
+    Overlay.Visible = true
+end)
+
+newButton("Clr Logs", function() return "Clear the remote log list" end, function()
+    for _, log in ipairs(logs) do log.Log:Destroy() end
+    logs = {}
+    updateRemoteCanvas()
+end)
+
+newButton("Autoblock", function() return "Toggle automatic blocking of spammy remotes" end, function()
+    configs.autoblock = not configs.autoblock
+end)
+
+newButton("Settings", function() return "Toggle various spy settings" end, function()
+    -- Simple toggle for demonstration
+    configs.logcheckcaller = not configs.logcheckcaller
+end)
+
+-- ============================================================
+-- INITIALIZATION
+-- ============================================================
+
+local function Init()
+    ShowLoadingScreen()
+    
+    codebox = Highlight.new(CodeBox)
+    codebox:setRaw("-- Holt Spy initialized\n-- Select a remote to view code\n-- Right-click (or long press) for advanced options")
+    
+    TopBar.InputBegan:Connect(backgroundUserInput)
+    CloseButton.MouseButton1Click:Connect(shutdown)
+    MinimizeButton.MouseButton1Click:Connect(function() toggleMinimize() end)
+    MaximizeButton.MouseButton1Click:Connect(function() toggleSideTray() end)
+    TitleButton.MouseButton1Click:Connect(onToggleButtonClick)
+    
+    schedulerconnect = RunService.Heartbeat:Connect(taskscheduler)
+    
+    getgenv().HoltSpyExecuted = true
+    getgenv().HoltSpyShutdown = shutdown
+    HoltSpyGui.Enabled = true
+    
+    -- Load GUI into protected container
+    if gethui then
+        HoltSpyGui.Parent = gethui()
+    elseif syn and syn.protect_gui then
+        syn.protect_gui(HoltSpyGui)
+        HoltSpyGui.Parent = CoreGui
+    else
+        HoltSpyGui.Parent = CoreGui
+    end
+    
+    toggleSpyMethod() -- Start spying
+    bringBackOnResize()
+end
+
+Init()
+
+-- Loadstring Support:
+-- To use this in your HoltSpy.lua file in a private repo:
+-- loadstring(game:HttpGet("https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main/HoltSpy.lua"))()
+
+-- Official Discord: https://discord.gg/E7Tfjgruck
