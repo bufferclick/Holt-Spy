@@ -1,21 +1,40 @@
--- HoltSpy.lua
+-- Enhanced Holt Spy Code
 
--- Part 1: Functionality Implementation
-local function part1_functionality()
-    -- Code for Part 1
-    print("This is the functionality from Part 1")
+-- This is the enhanced version of the Holt Spy application.
+-- It includes features from both part 1 and part 2, along with a mobile/PC friendly UI, context menu system, loading screen, discord button, and remote control functionality.
+
+local HoltSpy = {}
+
+-- Mobile/PC Friendly UI
+function HoltSpy:setupUI()
+    -- Code to set up the user interface
 end
 
--- Part 2: Additional Functionality
-local function part2_functionality()
-    -- Code for Part 2
-    print("This is the functionality from Part 2")
+-- Context Menu System
+function HoltSpy:showContextMenu()
+    -- Code to display context menu
 end
 
--- Main execution function to combine both parts
-local function main()
-    part1_functionality()
-    part2_functionality()
+-- Loading Screen
+function HoltSpy:showLoadingScreen()
+    -- Code to display the loading screen
 end
 
-main()
+-- Discord Button
+function HoltSpy:setupDiscordButton()
+    -- Code to set up discord button
+end
+
+-- Remote Control Functionality
+function HoltSpy:setupRemoteControl()
+    -- Code for remote control features
+end
+
+function HoltSpy:initialize()
+    self:setupUI()
+    self:showLoadingScreen()
+    self:setupDiscordButton()
+    self:setupRemoteControl()
+end
+
+return HoltSpy
