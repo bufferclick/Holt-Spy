@@ -103,11 +103,10 @@ local T = {
     FnCol   = Color3.fromRGB(100, 140, 255),
     Err     = Color3.fromRGB(220, 60,  60),
     Succ    = Color3.fromRGB(60,  200, 100),
-    Warn    = Color3.fromRGB(255, 180, 40),
     Border  = Color3.fromRGB(45,  45,  60),
     Scroll  = Color3.fromRGB(55,  55,  75),
-    BtnGrn  = Color3.fromRGB(40,  140, 70),
-    BtnRed  = Color3.fromRGB(160, 40,  40),
+    BtnGrn  = Color3.fromRGB(35,  120, 60),
+    BtnRed  = Color3.fromRGB(140, 35,  35),
 }
 
 -- ============================================================
@@ -126,9 +125,11 @@ local function Corner(r, p) New("UICorner", {CornerRadius = UDim.new(0, r), Pare
 local function Stroke(c, th, p) New("UIStroke", {Color = c, Thickness = th, Parent = p}) end
 local function Pad(l, r, t, b, p)
     New("UIPadding", {
-        PaddingLeft   = UDim.new(0, l), PaddingRight  = UDim.new(0, r),
-        PaddingTop    = UDim.new(0, t), PaddingBottom = UDim.new(0, b),
-        Parent = p,
+        PaddingLeft   = UDim.new(0, l),
+        PaddingRight  = UDim.new(0, r),
+        PaddingTop    = UDim.new(0, t),
+        PaddingBottom = UDim.new(0, b),
+        Parent        = p,
     })
 end
 
@@ -150,55 +151,133 @@ local Screen = New("ScreenGui", {
 if syn and syn.protect_gui then pcall(syn.protect_gui, Screen) end
 
 -- ============================================================
+-- LOADING SCREEN (bottom right corner, visible immediately)
+-- ============================================================
+
+local LoadF = New("Frame", {
+    Parent          = Screen,
+    BackgroundColor3 = T.BG,
+    Size            = UDim2.new(0, 200, 0, 58),
+    AnchorPoint     = Vector2.new(1, 1),
+    Position        = UDim2.new(1, -10, 1, -10),
+    BorderSizePixel = 0,
+    ZIndex          = 8000,
+    Visible         = true,
+})
+Corner(8, LoadF)
+Stroke(T.AccentL, 1, LoadF)
+
+New("TextLabel", {
+    Parent              = LoadF,
+    BackgroundTransparency = 1,
+    Position            = UDim2.new(0, 10, 0, 7),
+    Size                = UDim2.new(1, -20, 0, 16),
+    Font                = Enum.Font.GothamBold,
+    Text                = "Holt Spy",
+    TextColor3          = T.AccentL,
+    TextSize            = 14,
+    TextXAlignment      = Enum.TextXAlignment.Left,
+    ZIndex              = 8001,
+})
+New("TextLabel", {
+    Parent              = LoadF,
+    BackgroundTransparency = 1,
+    Position            = UDim2.new(0, 10, 0, 23),
+    Size                = UDim2.new(1, -20, 0, 11),
+    Font                = Enum.Font.Gotham,
+    Text                = "by BufferClick",
+    TextColor3          = T.TextMut,
+    TextSize            = 9,
+    TextXAlignment      = Enum.TextXAlignment.Left,
+    ZIndex              = 8001,
+})
+
+local LBarBG = New("Frame", {
+    Parent           = LoadF,
+    BackgroundColor3 = T.SurfLL,
+    Position         = UDim2.new(0, 10, 0, 40),
+    Size             = UDim2.new(1, -20, 0, 4),
+    BorderSizePixel  = 0,
+    ZIndex           = 8001,
+})
+Corner(2, LBarBG)
+
+local LFill = New("Frame", {
+    Parent           = LBarBG,
+    BackgroundColor3 = T.AccentL,
+    Size             = UDim2.new(0, 0, 1, 0),
+    BorderSizePixel  = 0,
+    ZIndex           = 8002,
+})
+Corner(2, LFill)
+
+-- ============================================================
 -- DEVICE SELECT
 -- ============================================================
 
-local isMobile = false
+local isMobile   = false
 local deviceDone = Instance.new("BindableEvent")
 
 local DFrame = New("Frame", {
-    Parent = Screen, BackgroundColor3 = T.BG,
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.new(0.5, 0, 0.5, 0),
-    Size = UDim2.new(0, 260, 0, 165),
-    BorderSizePixel = 0, ZIndex = 9999,
+    Parent           = Screen,
+    BackgroundColor3 = T.BG,
+    AnchorPoint      = Vector2.new(0.5, 0.5),
+    Position         = UDim2.new(0.5, 0, 0.5, 0),
+    Size             = UDim2.new(0, 260, 0, 165),
+    BorderSizePixel  = 0,
+    ZIndex           = 9999,
 })
 Corner(10, DFrame)
 Stroke(T.AccentL, 1.5, DFrame)
 
 New("TextLabel", {
-    Parent = DFrame, BackgroundTransparency = 1,
-    Position = UDim2.new(0, 0, 0, 14),
-    Size = UDim2.new(1, 0, 0, 26),
-    Font = Enum.Font.GothamBold, Text = "Holt Spy",
-    TextColor3 = T.AccentL, TextSize = 20, ZIndex = 10000,
+    Parent              = DFrame,
+    BackgroundTransparency = 1,
+    Position            = UDim2.new(0, 0, 0, 14),
+    Size                = UDim2.new(1, 0, 0, 26),
+    Font                = Enum.Font.GothamBold,
+    Text                = "Holt Spy",
+    TextColor3          = T.AccentL,
+    TextSize            = 20,
+    ZIndex              = 10000,
 })
 New("TextLabel", {
-    Parent = DFrame, BackgroundTransparency = 1,
-    Position = UDim2.new(0, 0, 0, 44),
-    Size = UDim2.new(1, 0, 0, 16),
-    Font = Enum.Font.Gotham, Text = "Select your device",
-    TextColor3 = T.TextDim, TextSize = 12, ZIndex = 10000,
+    Parent              = DFrame,
+    BackgroundTransparency = 1,
+    Position            = UDim2.new(0, 0, 0, 44),
+    Size                = UDim2.new(1, 0, 0, 16),
+    Font                = Enum.Font.Gotham,
+    Text                = "Select your device",
+    TextColor3          = T.TextDim,
+    TextSize            = 12,
+    ZIndex              = 10000,
 })
 New("TextLabel", {
-    Parent = DFrame, BackgroundTransparency = 1,
-    Position = UDim2.new(0, 0, 1, -18),
-    Size = UDim2.new(1, 0, 0, 14),
-    Font = Enum.Font.Gotham,
-    Text = "holt.pages.dev  |  discord.gg/E7Tfjgruck",
-    TextColor3 = T.TextMut, TextSize = 9, ZIndex = 10000,
+    Parent              = DFrame,
+    BackgroundTransparency = 1,
+    Position            = UDim2.new(0, 0, 1, -18),
+    Size                = UDim2.new(1, 0, 0, 14),
+    Font                = Enum.Font.Gotham,
+    Text                = "holt.pages.dev  |  discord.gg/E7Tfjgruck",
+    TextColor3          = T.TextMut,
+    TextSize            = 9,
+    ZIndex              = 10000,
 })
 
 local function DBtn(txt, xPct, cb)
     local b = New("TextButton", {
-        Parent = DFrame, BackgroundColor3 = T.Accent,
-        BorderSizePixel = 0,
-        AnchorPoint = Vector2.new(0.5, 0),
-        Position = UDim2.new(xPct, 0, 0, 78),
-        Size = UDim2.new(0, 100, 0, 32),
-        Font = Enum.Font.GothamBold, Text = txt,
-        TextColor3 = T.Text, TextSize = 12,
-        AutoButtonColor = false, ZIndex = 10000,
+        Parent           = DFrame,
+        BackgroundColor3 = T.Accent,
+        BorderSizePixel  = 0,
+        AnchorPoint      = Vector2.new(0.5, 0),
+        Position         = UDim2.new(xPct, 0, 0, 78),
+        Size             = UDim2.new(0, 100, 0, 32),
+        Font             = Enum.Font.GothamBold,
+        Text             = txt,
+        TextColor3       = T.Text,
+        TextSize         = 12,
+        AutoButtonColor  = false,
+        ZIndex           = 10000,
     })
     Corner(6, b)
     b.MouseEnter:Connect(function()
@@ -222,89 +301,61 @@ deviceDone:Destroy()
 task.wait(0.1)
 
 -- ============================================================
--- SIZING
+-- SIZING (set after device choice)
 -- ============================================================
 
-local W   = isMobile and 262  or 520
-local H   = isMobile and 215  or 340
-local LW  = isMobile and 88   or 145
-local TH  = isMobile and 22   or 28
-local BH  = isMobile and 20   or 24
-local FS  = isMobile and 9    or 11
-local FSM = isMobile and 10   or 12
-local FSL = isMobile and 11   or 14
-local RH  = isMobile and 18   or 22
+local W   = isMobile and 262 or 520
+local H   = isMobile and 215 or 340
+local LW  = isMobile and 88  or 145
+local TH  = isMobile and 22  or 28
+local BH  = isMobile and 20  or 24
+local FS  = isMobile and 9   or 11
+local FSM = isMobile and 10  or 12
+local FSL = isMobile and 11  or 14
+local RH  = isMobile and 18  or 22
 local BW  = TH + 4
-
--- ============================================================
--- LOADING NOTIFICATION (small corner)
--- ============================================================
-
-local LoadF = New("Frame", {
-    Parent = Screen, BackgroundColor3 = T.BG,
-    Size = UDim2.new(0, 185, 0, 52),
-    Position = UDim2.new(1, -195, 1, -62),
-    BorderSizePixel = 0, ZIndex = 8000,
-})
-Corner(8, LoadF)
-Stroke(T.AccentL, 1, LoadF)
-New("TextLabel", {
-    Parent = LoadF, BackgroundTransparency = 1,
-    Position = UDim2.new(0, 10, 0, 6),
-    Size = UDim2.new(1, -20, 0, 15),
-    Font = Enum.Font.GothamBold, Text = "Holt Spy",
-    TextColor3 = T.AccentL, TextSize = 13,
-    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 8001,
-})
-New("TextLabel", {
-    Parent = LoadF, BackgroundTransparency = 1,
-    Position = UDim2.new(0, 10, 0, 21),
-    Size = UDim2.new(1, -20, 0, 10),
-    Font = Enum.Font.Gotham, Text = "by BufferClick",
-    TextColor3 = T.TextMut, TextSize = 8,
-    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 8001,
-})
-local LBarBG = New("Frame", {
-    Parent = LoadF, BackgroundColor3 = T.SurfLL,
-    Position = UDim2.new(0, 10, 0, 38),
-    Size = UDim2.new(1, -20, 0, 3),
-    BorderSizePixel = 0, ZIndex = 8001,
-})
-Corner(2, LBarBG)
-local LFill = New("Frame", {
-    Parent = LBarBG, BackgroundColor3 = T.AccentL,
-    Size = UDim2.new(0, 0, 1, 0),
-    BorderSizePixel = 0, ZIndex = 8002,
-})
-Corner(2, LFill)
 
 -- ============================================================
 -- MINIMIZED ICON
 -- ============================================================
 
 local MinIcon = New("Frame", {
-    Parent = Screen, BackgroundColor3 = T.Accent,
-    Size = UDim2.new(0, 42, 0, 42),
-    Position = UDim2.new(0, 10, 0.5, -21),
-    BorderSizePixel = 0, ZIndex = 490, Visible = false,
+    Parent           = Screen,
+    BackgroundColor3 = T.Accent,
+    Size             = UDim2.new(0, 42, 0, 42),
+    Position         = UDim2.new(0, 10, 0.5, -21),
+    BorderSizePixel  = 0,
+    ZIndex           = 490,
+    Visible          = false,
 })
 Corner(21, MinIcon)
 Stroke(T.AccentL, 2, MinIcon)
-local MinIconInner = New("Frame", {
-    Parent = MinIcon, BackgroundColor3 = T.AccentL,
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.new(0.5, 0, 0.5, 0),
-    Size = UDim2.new(0, 30, 0, 30),
-    BorderSizePixel = 0, ZIndex = 491,
+
+New("Frame", {
+    Parent              = MinIcon,
+    BackgroundColor3    = T.AccentL,
+    AnchorPoint         = Vector2.new(0.5, 0.5),
+    Position            = UDim2.new(0.5, 0, 0.5, 0),
+    Size                = UDim2.new(0, 30, 0, 30),
+    BorderSizePixel     = 0,
+    ZIndex              = 491,
     BackgroundTransparency = 0.85,
 })
-Corner(15, MinIconInner)
+do
+    local inner = MinIcon:FindFirstChildWhichIsA("Frame")
+    if inner then Corner(15, inner) end
+end
+
 local MinIconBtn = New("TextButton", {
-    Parent = MinIcon, BackgroundTransparency = 1,
-    Size = UDim2.new(1, 0, 1, 0),
-    Font = Enum.Font.GothamBold, Text = "HS",
-    TextColor3 = T.Text, TextSize = isMobile and 10 or 12,
-    AutoButtonColor = false, ZIndex = 492,
+    Parent              = MinIcon,
+    BackgroundTransparency = 1,
+    Size                = UDim2.new(1, 0, 1, 0),
+    Font                = Enum.Font.GothamBold,
+    Text                = "HS",
+    TextColor3          = T.Text,
+    TextSize            = isMobile and 10 or 12,
+    AutoButtonColor     = false,
+    ZIndex              = 492,
 })
 
 -- ============================================================
@@ -312,46 +363,64 @@ local MinIconBtn = New("TextButton", {
 -- ============================================================
 
 local BG = New("Frame", {
-    Parent = Screen, Name = "BG",
-    BackgroundColor3 = T.BG, BorderSizePixel = 0,
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.new(0.5, 0, 0.5, 0),
-    Size = UDim2.new(0, W, 0, H), ZIndex = 10,
+    Parent           = Screen,
+    Name             = "BG",
+    BackgroundColor3 = T.BG,
+    BorderSizePixel  = 0,
+    AnchorPoint      = Vector2.new(0.5, 0.5),
+    Position         = UDim2.new(0.5, 0, 0.5, 0),
+    Size             = UDim2.new(0, W, 0, H),
+    ZIndex           = 10,
 })
 Corner(8, BG)
 Stroke(T.Border, 1, BG)
 
+-- TopBar
 local TopBar = New("Frame", {
-    Parent = BG, BackgroundColor3 = T.TopBar,
-    BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, TH),
-    ZIndex = 20, ClipsDescendants = true,
+    Parent           = BG,
+    BackgroundColor3 = T.TopBar,
+    BorderSizePixel  = 0,
+    Size             = UDim2.new(1, 0, 0, TH),
+    ZIndex           = 20,
+    ClipsDescendants = true,
 })
 Corner(8, TopBar)
 New("Frame", {
-    Parent = TopBar, BackgroundColor3 = T.TopBar,
-    BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -6),
-    Size = UDim2.new(1, 0, 0, 6), ZIndex = 21,
+    Parent           = TopBar,
+    BackgroundColor3 = T.TopBar,
+    BorderSizePixel  = 0,
+    Position         = UDim2.new(0, 0, 1, -6),
+    Size             = UDim2.new(1, 0, 0, 6),
+    ZIndex           = 21,
 })
 
 local TitleBtn = New("TextButton", {
-    Parent = TopBar, BackgroundTransparency = 1,
-    Position = UDim2.new(0, 8, 0, 0),
-    Size = UDim2.new(0, 72, 1, 0),
-    Font = Enum.Font.GothamBold, Text = "Holt Spy",
-    TextColor3 = T.Succ, TextSize = FSL,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    AutoButtonColor = false, ZIndex = 22,
+    Parent              = TopBar,
+    BackgroundTransparency = 1,
+    Position            = UDim2.new(0, 8, 0, 0),
+    Size                = UDim2.new(0, 72, 1, 0),
+    Font                = Enum.Font.GothamBold,
+    Text                = "Holt Spy",
+    TextColor3          = T.Succ,
+    TextSize            = FSL,
+    TextXAlignment      = Enum.TextXAlignment.Left,
+    AutoButtonColor     = false,
+    ZIndex              = 22,
 })
 
 local function MakeWinBtn(icon, xOff, hCol)
     local b = New("TextButton", {
-        Parent = TopBar, BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(1, 0),
-        Position = UDim2.new(1, xOff, 0, 0),
-        Size = UDim2.new(0, BW, 1, 0),
-        Font = Enum.Font.GothamBold, Text = icon,
-        TextColor3 = T.TextDim, TextSize = FSM,
-        AutoButtonColor = false, ZIndex = 22,
+        Parent              = TopBar,
+        BackgroundTransparency = 1,
+        AnchorPoint         = Vector2.new(1, 0),
+        Position            = UDim2.new(1, xOff, 0, 0),
+        Size                = UDim2.new(0, BW, 1, 0),
+        Font                = Enum.Font.GothamBold,
+        Text                = icon,
+        TextColor3          = T.TextDim,
+        TextSize            = FSM,
+        AutoButtonColor     = false,
+        ZIndex              = 22,
     })
     b.MouseEnter:Connect(function()
         TweenService:Create(b, TweenInfo.new(0.12), {TextColor3 = hCol or T.Text}):Play()
@@ -362,242 +431,320 @@ local function MakeWinBtn(icon, xOff, hCol)
     return b
 end
 
-local CloseBtn = MakeWinBtn("X", 0,      T.Err)
-local SideBtn  = MakeWinBtn("+", -BW,    T.AccentL)
-local MinBtn   = MakeWinBtn("_", -BW*2,  T.TextDim)
+local CloseBtn = MakeWinBtn("X", 0,     T.Err)
+local SideBtn  = MakeWinBtn("+", -BW,   T.AccentL)
+local MinBtn   = MakeWinBtn("_", -BW*2, T.TextDim)
 
 -- Left Panel
 local LP = New("Frame", {
-    Parent = BG, BackgroundColor3 = T.Surface,
-    BorderSizePixel = 0, Position = UDim2.new(0, 0, 0, TH),
-    Size = UDim2.new(0, LW, 1, -TH),
-    ClipsDescendants = true, ZIndex = 10,
+    Parent           = BG,
+    BackgroundColor3 = T.Surface,
+    BorderSizePixel  = 0,
+    Position         = UDim2.new(0, 0, 0, TH),
+    Size             = UDim2.new(0, LW, 1, -TH),
+    ClipsDescendants = true,
+    ZIndex           = 10,
 })
 New("Frame", {
-    Parent = LP, BackgroundColor3 = T.Border,
-    BorderSizePixel = 0, Position = UDim2.new(1, -1, 0, 0),
-    Size = UDim2.new(0, 1, 1, 0), ZIndex = 11,
+    Parent           = LP,
+    BackgroundColor3 = T.Border,
+    BorderSizePixel  = 0,
+    Position         = UDim2.new(1, -1, 0, 0),
+    Size             = UDim2.new(0, 1, 1, 0),
+    ZIndex           = 11,
 })
 
 local SBar = New("TextBox", {
-    Parent = LP, BackgroundColor3 = T.SurfLL,
-    BorderSizePixel = 0, Position = UDim2.new(0, 4, 0, 3),
-    Size = UDim2.new(1, -8, 0, isMobile and 16 or 20),
-    Font = Enum.Font.Gotham, PlaceholderText = "Search...",
-    PlaceholderColor3 = T.TextMut, Text = "",
-    TextColor3 = T.Text, TextSize = FS,
-    ClearTextOnFocus = false, ZIndex = 12,
+    Parent              = LP,
+    BackgroundColor3    = T.SurfLL,
+    BorderSizePixel     = 0,
+    Position            = UDim2.new(0, 4, 0, 3),
+    Size                = UDim2.new(1, -8, 0, isMobile and 16 or 20),
+    Font                = Enum.Font.Gotham,
+    PlaceholderText     = "Search...",
+    PlaceholderColor3   = T.TextMut,
+    Text                = "",
+    TextColor3          = T.Text,
+    TextSize            = FS,
+    ClearTextOnFocus    = false,
+    ZIndex              = 12,
 })
 Corner(3, SBar)
 Pad(4, 4, 0, 0, SBar)
 
 local LogList = New("ScrollingFrame", {
-    Parent = LP, BackgroundTransparency = 1,
-    BorderSizePixel = 0,
-    Position = UDim2.new(0, 2, 0, isMobile and 22 or 26),
-    Size = UDim2.new(1, -4, 1, -(isMobile and 22 or 26)),
-    CanvasSize = UDim2.new(0, 0, 0, 0),
-    ScrollBarThickness = 2, ScrollBarImageColor3 = T.Scroll,
-    AutomaticCanvasSize = Enum.AutomaticSize.Y, ZIndex = 12,
+    Parent               = LP,
+    BackgroundTransparency = 1,
+    BorderSizePixel      = 0,
+    Position             = UDim2.new(0, 2, 0, isMobile and 22 or 26),
+    Size                 = UDim2.new(1, -4, 1, -(isMobile and 22 or 26)),
+    CanvasSize           = UDim2.new(0, 0, 0, 0),
+    ScrollBarThickness   = 2,
+    ScrollBarImageColor3 = T.Scroll,
+    AutomaticCanvasSize  = Enum.AutomaticSize.Y,
+    ZIndex               = 12,
 })
 New("UIListLayout", {
-    Parent = LogList,
+    Parent              = LogList,
     HorizontalAlignment = Enum.HorizontalAlignment.Center,
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    Padding = UDim.new(0, 1),
+    SortOrder           = Enum.SortOrder.LayoutOrder,
+    Padding             = UDim.new(0, 1),
 })
 
 -- Right Panel
 local RP = New("Frame", {
-    Parent = BG, BackgroundColor3 = T.BG,
-    BorderSizePixel = 0,
-    Position = UDim2.new(0, LW, 0, TH),
-    Size = UDim2.new(1, -LW, 1, -TH),
-    ClipsDescendants = true, ZIndex = 10, Visible = false,
+    Parent           = BG,
+    BackgroundColor3 = T.BG,
+    BorderSizePixel  = 0,
+    Position         = UDim2.new(0, LW, 0, TH),
+    Size             = UDim2.new(1, -LW, 1, -TH),
+    ClipsDescendants = true,
+    ZIndex           = 10,
+    Visible          = false,
 })
 
 local CodeFrame = New("Frame", {
-    Parent = RP, BackgroundColor3 = T.Surface,
-    BorderSizePixel = 0,
-    Size = UDim2.new(1, 0, 0.45, 0),
-    ClipsDescendants = true, ZIndex = 11,
+    Parent           = RP,
+    BackgroundColor3 = T.Surface,
+    BorderSizePixel  = 0,
+    Size             = UDim2.new(1, 0, 0.45, 0),
+    ClipsDescendants = true,
+    ZIndex           = 11,
 })
 New("Frame", {
-    Parent = RP, BackgroundColor3 = T.Border,
-    BorderSizePixel = 0, Position = UDim2.new(0, 0, 0.45, 0),
-    Size = UDim2.new(1, 0, 0, 1), ZIndex = 12,
+    Parent           = RP,
+    BackgroundColor3 = T.Border,
+    BorderSizePixel  = 0,
+    Position         = UDim2.new(0, 0, 0.45, 0),
+    Size             = UDim2.new(1, 0, 0, 1),
+    ZIndex           = 12,
 })
 
 local ActionScroll = New("ScrollingFrame", {
-    Parent = RP, BackgroundTransparency = 1,
-    BorderSizePixel = 0,
-    Position = UDim2.new(0, 0, 0.45, 2),
-    Size = UDim2.new(1, 0, 0.55, -2),
-    CanvasSize = UDim2.new(0, 0, 0, 0),
-    ScrollBarThickness = 2, ScrollBarImageColor3 = T.Scroll,
-    AutomaticCanvasSize = Enum.AutomaticSize.Y, ZIndex = 12,
+    Parent               = RP,
+    BackgroundTransparency = 1,
+    BorderSizePixel      = 0,
+    Position             = UDim2.new(0, 0, 0.45, 2),
+    Size                 = UDim2.new(1, 0, 0.55, -2),
+    CanvasSize           = UDim2.new(0, 0, 0, 0),
+    ScrollBarThickness   = 2,
+    ScrollBarImageColor3 = T.Scroll,
+    AutomaticCanvasSize  = Enum.AutomaticSize.Y,
+    ZIndex               = 12,
 })
 New("UIListLayout", {
-    Parent = ActionScroll,
+    Parent              = ActionScroll,
     HorizontalAlignment = Enum.HorizontalAlignment.Center,
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    Padding = UDim.new(0, 2),
+    SortOrder           = Enum.SortOrder.LayoutOrder,
+    Padding             = UDim.new(0, 2),
 })
 Pad(4, 4, 4, 4, ActionScroll)
 
 -- Edit Panel
 local EditPanel = New("Frame", {
-    Parent = Screen, BackgroundColor3 = T.BG,
-    BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.new(0.5, 0, 0.5, 0),
-    Size = UDim2.new(0, isMobile and 250 or 400, 0, isMobile and 200 or 270),
-    Visible = false, ZIndex = 700,
+    Parent           = Screen,
+    BackgroundColor3 = T.BG,
+    BorderSizePixel  = 0,
+    AnchorPoint      = Vector2.new(0.5, 0.5),
+    Position         = UDim2.new(0.5, 0, 0.5, 0),
+    Size             = UDim2.new(0, isMobile and 250 or 400, 0, isMobile and 200 or 270),
+    Visible          = false,
+    ZIndex           = 700,
 })
 Corner(8, EditPanel)
 Stroke(T.Border, 1, EditPanel)
 
 local EditTBar = New("Frame", {
-    Parent = EditPanel, BackgroundColor3 = T.TopBar,
-    BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 24),
-    ZIndex = 701, ClipsDescendants = true,
+    Parent           = EditPanel,
+    BackgroundColor3 = T.TopBar,
+    BorderSizePixel  = 0,
+    Size             = UDim2.new(1, 0, 0, 24),
+    ZIndex           = 701,
+    ClipsDescendants = true,
 })
 Corner(8, EditTBar)
 New("Frame", {
-    Parent = EditTBar, BackgroundColor3 = T.TopBar,
-    BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -5),
-    Size = UDim2.new(1, 0, 0, 5), ZIndex = 702,
+    Parent           = EditTBar,
+    BackgroundColor3 = T.TopBar,
+    BorderSizePixel  = 0,
+    Position         = UDim2.new(0, 0, 1, -5),
+    Size             = UDim2.new(1, 0, 0, 5),
+    ZIndex           = 702,
 })
 New("TextLabel", {
-    Parent = EditTBar, BackgroundTransparency = 1,
-    Position = UDim2.new(0, 8, 0, 0),
-    Size = UDim2.new(0.8, 0, 1, 0),
-    Font = Enum.Font.GothamBold, Text = "Edit Code",
-    TextColor3 = T.AccentL, TextSize = FSL,
-    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 702,
+    Parent              = EditTBar,
+    BackgroundTransparency = 1,
+    Position            = UDim2.new(0, 8, 0, 0),
+    Size                = UDim2.new(0.8, 0, 1, 0),
+    Font                = Enum.Font.GothamBold,
+    Text                = "Edit Code",
+    TextColor3          = T.AccentL,
+    TextSize            = FSL,
+    TextXAlignment      = Enum.TextXAlignment.Left,
+    ZIndex              = 702,
 })
 local EditCloseBtn = New("TextButton", {
-    Parent = EditTBar, BackgroundTransparency = 1,
-    AnchorPoint = Vector2.new(1, 0),
-    Position = UDim2.new(1, 0, 0, 0),
-    Size = UDim2.new(0, 24, 1, 0),
-    Font = Enum.Font.GothamBold, Text = "X",
-    TextColor3 = T.TextDim, TextSize = FSM,
-    AutoButtonColor = false, ZIndex = 702,
+    Parent              = EditTBar,
+    BackgroundTransparency = 1,
+    AnchorPoint         = Vector2.new(1, 0),
+    Position            = UDim2.new(1, 0, 0, 0),
+    Size                = UDim2.new(0, 24, 1, 0),
+    Font                = Enum.Font.GothamBold,
+    Text                = "X",
+    TextColor3          = T.TextDim,
+    TextSize            = FSM,
+    AutoButtonColor     = false,
+    ZIndex              = 702,
 })
 local EditInput = New("TextBox", {
-    Parent = EditPanel, BackgroundColor3 = T.Surface,
-    BorderSizePixel = 0, Position = UDim2.new(0, 6, 0, 30),
-    Size = UDim2.new(1, -12, 1, -62),
-    Font = Enum.Font.Code, Text = "",
-    TextColor3 = T.Text, TextSize = FS,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    TextYAlignment = Enum.TextYAlignment.Top,
-    ClearTextOnFocus = false, MultiLine = true,
-    TextWrapped = true, ZIndex = 702, ClipsDescendants = true,
+    Parent              = EditPanel,
+    BackgroundColor3    = T.Surface,
+    BorderSizePixel     = 0,
+    Position            = UDim2.new(0, 6, 0, 30),
+    Size                = UDim2.new(1, -12, 1, -62),
+    Font                = Enum.Font.Code,
+    Text                = "",
+    TextColor3          = T.Text,
+    TextSize            = FS,
+    TextXAlignment      = Enum.TextXAlignment.Left,
+    TextYAlignment      = Enum.TextYAlignment.Top,
+    ClearTextOnFocus    = false,
+    MultiLine           = true,
+    TextWrapped         = true,
+    ZIndex              = 702,
+    ClipsDescendants    = true,
 })
 Corner(4, EditInput)
 Pad(6, 6, 4, 4, EditInput)
 local EditSaveBtn = New("TextButton", {
-    Parent = EditPanel, BackgroundColor3 = T.Accent,
-    BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 1),
-    Position = UDim2.new(0.5, 0, 1, -6),
-    Size = UDim2.new(0, 100, 0, 22),
-    Font = Enum.Font.GothamBold, Text = "Save Modified",
-    TextColor3 = T.Text, TextSize = FS,
-    AutoButtonColor = false, ZIndex = 702,
+    Parent           = EditPanel,
+    BackgroundColor3 = T.Accent,
+    BorderSizePixel  = 0,
+    AnchorPoint      = Vector2.new(0.5, 1),
+    Position         = UDim2.new(0.5, 0, 1, -6),
+    Size             = UDim2.new(0, 100, 0, 22),
+    Font             = Enum.Font.GothamBold,
+    Text             = "Save Modified",
+    TextColor3       = T.Text,
+    TextSize         = FS,
+    AutoButtonColor  = false,
+    ZIndex           = 702,
 })
 Corner(4, EditSaveBtn)
 
 -- Modified Panel
 local ModPanel = New("Frame", {
-    Parent = Screen, BackgroundColor3 = T.BG,
-    BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.new(0.5, 0, 0.5, 0),
-    Size = UDim2.new(0, isMobile and 250 or 400, 0, isMobile and 200 or 270),
-    Visible = false, ZIndex = 700,
+    Parent           = Screen,
+    BackgroundColor3 = T.BG,
+    BorderSizePixel  = 0,
+    AnchorPoint      = Vector2.new(0.5, 0.5),
+    Position         = UDim2.new(0.5, 0, 0.5, 0),
+    Size             = UDim2.new(0, isMobile and 250 or 400, 0, isMobile and 200 or 270),
+    Visible          = false,
+    ZIndex           = 700,
 })
 Corner(8, ModPanel)
 Stroke(T.Border, 1, ModPanel)
+
 local ModTBar = New("Frame", {
-    Parent = ModPanel, BackgroundColor3 = T.TopBar,
-    BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 24),
-    ZIndex = 701, ClipsDescendants = true,
+    Parent           = ModPanel,
+    BackgroundColor3 = T.TopBar,
+    BorderSizePixel  = 0,
+    Size             = UDim2.new(1, 0, 0, 24),
+    ZIndex           = 701,
+    ClipsDescendants = true,
 })
 Corner(8, ModTBar)
 New("Frame", {
-    Parent = ModTBar, BackgroundColor3 = T.TopBar,
-    BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -5),
-    Size = UDim2.new(1, 0, 0, 5), ZIndex = 702,
+    Parent           = ModTBar,
+    BackgroundColor3 = T.TopBar,
+    BorderSizePixel  = 0,
+    Position         = UDim2.new(0, 0, 1, -5),
+    Size             = UDim2.new(1, 0, 0, 5),
+    ZIndex           = 702,
 })
 New("TextLabel", {
-    Parent = ModTBar, BackgroundTransparency = 1,
-    Position = UDim2.new(0, 8, 0, 0),
-    Size = UDim2.new(0.8, 0, 1, 0),
-    Font = Enum.Font.GothamBold, Text = "Modified Code",
-    TextColor3 = T.AccentL, TextSize = FSL,
-    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 702,
+    Parent              = ModTBar,
+    BackgroundTransparency = 1,
+    Position            = UDim2.new(0, 8, 0, 0),
+    Size                = UDim2.new(0.8, 0, 1, 0),
+    Font                = Enum.Font.GothamBold,
+    Text                = "Modified Code",
+    TextColor3          = T.AccentL,
+    TextSize            = FSL,
+    TextXAlignment      = Enum.TextXAlignment.Left,
+    ZIndex              = 702,
 })
 local ModCloseBtn = New("TextButton", {
-    Parent = ModTBar, BackgroundTransparency = 1,
-    AnchorPoint = Vector2.new(1, 0),
-    Position = UDim2.new(1, 0, 0, 0),
-    Size = UDim2.new(0, 24, 1, 0),
-    Font = Enum.Font.GothamBold, Text = "X",
-    TextColor3 = T.TextDim, TextSize = FSM,
-    AutoButtonColor = false, ZIndex = 702,
+    Parent              = ModTBar,
+    BackgroundTransparency = 1,
+    AnchorPoint         = Vector2.new(1, 0),
+    Position            = UDim2.new(1, 0, 0, 0),
+    Size                = UDim2.new(0, 24, 1, 0),
+    Font                = Enum.Font.GothamBold,
+    Text                = "X",
+    TextColor3          = T.TextDim,
+    TextSize            = FSM,
+    AutoButtonColor     = false,
+    ZIndex              = 702,
 })
 local ModList = New("ScrollingFrame", {
-    Parent = ModPanel, BackgroundTransparency = 1,
-    BorderSizePixel = 0, Position = UDim2.new(0, 6, 0, 30),
-    Size = UDim2.new(1, -12, 1, -36),
-    CanvasSize = UDim2.new(0, 0, 0, 0),
-    ScrollBarThickness = 2, ScrollBarImageColor3 = T.Scroll,
-    AutomaticCanvasSize = Enum.AutomaticSize.Y, ZIndex = 702,
+    Parent               = ModPanel,
+    BackgroundTransparency = 1,
+    BorderSizePixel      = 0,
+    Position             = UDim2.new(0, 6, 0, 30),
+    Size                 = UDim2.new(1, -12, 1, -36),
+    CanvasSize           = UDim2.new(0, 0, 0, 0),
+    ScrollBarThickness   = 2,
+    ScrollBarImageColor3 = T.Scroll,
+    AutomaticCanvasSize  = Enum.AutomaticSize.Y,
+    ZIndex               = 702,
 })
 New("UIListLayout", {
-    Parent = ModList, SortOrder = Enum.SortOrder.LayoutOrder,
-    Padding = UDim.new(0, 3),
+    Parent    = ModList,
+    SortOrder = Enum.SortOrder.LayoutOrder,
+    Padding   = UDim.new(0, 3),
 })
 
 local Overlay = New("TextButton", {
-    Parent = Screen, BackgroundColor3 = Color3.new(0, 0, 0),
+    Parent              = Screen,
+    BackgroundColor3    = Color3.new(0, 0, 0),
     BackgroundTransparency = 1,
-    Size = UDim2.new(1, 0, 1, 0),
-    Text = "", AutoButtonColor = false,
-    Visible = false, ZIndex = 399, BorderSizePixel = 0,
+    Size                = UDim2.new(1, 0, 1, 0),
+    Text                = "",
+    AutoButtonColor     = false,
+    Visible             = false,
+    ZIndex              = 399,
+    BorderSizePixel     = 0,
 })
 
 -- ============================================================
 -- STATE
 -- ============================================================
 
-local logs, remoteLogs = {}, {}
-local selected     = nil
-
--- Blacklist: just hides from the log panel, NEVER blocks the actual remote
-local blacklistById   = {}
-local blacklistByName = {}
-
-local scheduled    = {}
-local activeLoops  = {}
-local modifiedCodes = {}
-local history, excluding = {}, {}
-local layoutOrder  = 999999999
-local sideClosed   = true
-local isMinimized  = false
-local spyActive    = true  -- starts green/on
-local schedulerConn = nil
-local codebox      = nil
-local originalNamecall = nil
-local realAutoblock = false
-local realLogCaller = false
+local logs, remoteLogs  = {}, {}
+local selected          = nil
+local blacklistById     = {}
+local blacklistByName   = {}
+local scheduled         = {}
+local activeLoops       = {}
+local modifiedCodes     = {}
+local history           = {}
+local excluding         = {}
+local layoutOrder       = 999999999
+local sideClosed        = true
+local isMinimized       = false
+local spyActive         = true
+local schedulerConn     = nil
+local codebox           = nil
+local originalNamecall  = nil
+local realAutoblock     = false
+local realLogCaller     = false
 
 getgenv().HOLTSPY_MaxRemotes = 500
 
--- We only need these to get the original namecall reference safely
-local Storage   = New("Folder", {Parent = CoreGui})
-local _re       = New("RemoteEvent", {Parent = Storage})
-local origFire  = _re.FireServer
+local Storage  = New("Folder", {Parent = CoreGui})
+local _re      = New("RemoteEvent", {Parent = Storage})
 
 -- ============================================================
 -- OVERLAY HELPERS
@@ -624,7 +771,8 @@ local function i2p(inst)
         local lp = Players.LocalPlayer
         if lp and (inst == lp or inst:IsDescendantOf(lp)) then
             local rel = inst:GetFullName():sub(#lp:GetFullName() + 2)
-            return 'game:GetService("Players").LocalPlayer' .. (rel ~= "" and ("." .. rel) or "")
+            return 'game:GetService("Players").LocalPlayer'
+                .. (rel ~= "" and ("." .. rel) or "")
         end
         local obj = inst
         while obj.Parent and obj.Parent ~= game do obj = obj.Parent end
@@ -649,10 +797,10 @@ end
 local function v2s(v, d)
     d = d or 0
     local t = typeof(v)
-    if t == "nil"     then return "nil"
+    if t == "nil"         then return "nil"
     elseif t == "boolean" then return tostring(v)
-    elseif t == "number" then
-        if v ~= v then return "0/0"
+    elseif t == "number"  then
+        if v ~= v              then return "0/0"
         elseif v == math.huge  then return "math.huge"
         elseif v == -math.huge then return "-math.huge"
         else return tostring(v) end
@@ -662,22 +810,25 @@ local function v2s(v, d)
     elseif t == "Vector2"  then return ("Vector2.new(%g,%g)"):format(v.X, v.Y)
     elseif t == "CFrame"   then
         local c = {v:GetComponents()}
-        local p = {}; for _, n in ipairs(c) do p[#p+1] = tostring(n) end
+        local p = {}
+        for _, n in ipairs(c) do p[#p+1] = tostring(n) end
         return "CFrame.new(" .. table.concat(p, ",") .. ")"
     elseif t == "Color3"   then return ("Color3.new(%g,%g,%g)"):format(v.R, v.G, v.B)
-    elseif t == "UDim2"    then return ("UDim2.new(%g,%g,%g,%g)"):format(v.X.Scale,v.X.Offset,v.Y.Scale,v.Y.Offset)
+    elseif t == "UDim2"    then
+        return ("UDim2.new(%g,%g,%g,%g)"):format(
+            v.X.Scale, v.X.Offset, v.Y.Scale, v.Y.Offset)
     elseif t == "UDim"     then return ("UDim.new(%g,%g)"):format(v.Scale, v.Offset)
     elseif t == "BrickColor" then return ('BrickColor.new("%s")'):format(v.Name)
     elseif t == "EnumItem" then return tostring(v)
-    elseif t == "table" then
+    elseif t == "table"    then
         if d > 5 then return "{}" end
         local parts = {}
         for k, val in next, v do
             local ks = (type(k) == "string" and k:match("^[%a_][%w_]*$"))
                 and k or ("[" .. v2s(k, d+1) .. "]")
-            parts[#parts+1] = ks .. "=" .. v2s(val, d+1)
+            parts[#parts+1] = ks .. " = " .. v2s(val, d+1)
         end
-        return "{" .. table.concat(parts, ",") .. "}"
+        return "{\n    " .. table.concat(parts, ",\n    ") .. "\n}"
     else return tostring(v) end
 end
 
@@ -697,7 +848,10 @@ local function genScript(remote, args)
         end
     end
     if getnilReq then
-        pfx = "local function getNil(n,c)\n    for _,v in next,getnilinstances() do\n        if v.ClassName==c and v.Name==n then return v end\n    end\nend\n\n"
+        pfx = "local function getNil(n, c)\n"
+            .. "    for _, v in next, getnilinstances() do\n"
+            .. "        if v.ClassName == c and v.Name == n then return v end\n"
+            .. "    end\nend\n\n"
     end
     local call
     if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
@@ -715,7 +869,7 @@ local function genScript(remote, args)
 end
 
 -- ============================================================
--- BLACKLIST CHECK (display filter only, never blocks game)
+-- BLACKLIST CHECK (display filter ONLY, never touches game)
 -- ============================================================
 
 local function isHidden(id, name)
@@ -723,7 +877,7 @@ local function isHidden(id, name)
 end
 
 -- ============================================================
--- ACTION BUTTONS IN RIGHT PANEL
+-- ACTION BUTTONS
 -- ============================================================
 
 local function ClearActions()
@@ -734,31 +888,28 @@ local function ClearActions()
     end
 end
 
-local activeToggleLoops = {}
-
--- Creates a standard action button
 local function ABtn(txt, order, cb, bgCol)
+    local defCol = bgCol or T.SurfLL
     local b = New("TextButton", {
-        Parent = ActionScroll,
-        BackgroundColor3 = bgCol or T.SurfLL,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, -8, 0, BH),
-        Font = Enum.Font.Gotham,
-        Text = "  " .. txt,
-        TextColor3 = T.Text,
-        TextSize = FS,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        AutoButtonColor = false,
-        LayoutOrder = order,
-        ZIndex = 13,
+        Parent           = ActionScroll,
+        BackgroundColor3 = defCol,
+        BorderSizePixel  = 0,
+        Size             = UDim2.new(1, -8, 0, BH),
+        Font             = Enum.Font.Gotham,
+        Text             = "  " .. txt,
+        TextColor3       = T.Text,
+        TextSize         = FS,
+        TextXAlignment   = Enum.TextXAlignment.Left,
+        AutoButtonColor  = false,
+        LayoutOrder      = order,
+        ZIndex           = 13,
     })
     Corner(4, b)
-    local def = bgCol or T.SurfLL
     b.MouseEnter:Connect(function()
         TweenService:Create(b, TweenInfo.new(0.1), {BackgroundColor3 = T.SurfL}):Play()
     end)
     b.MouseLeave:Connect(function()
-        TweenService:Create(b, TweenInfo.new(0.1), {BackgroundColor3 = def}):Play()
+        TweenService:Create(b, TweenInfo.new(0.1), {BackgroundColor3 = defCol}):Play()
     end)
     b.MouseButton1Click:Connect(function()
         if cb then cb(b) end
@@ -766,22 +917,22 @@ local function ABtn(txt, order, cb, bgCol)
     return b
 end
 
--- Creates a toggle button (green = on, red = off)
-local function AToggle(labelOn, labelOff, order, initState, onToggle)
+local function AToggle(lblOn, lblOff, order, initState, onToggle)
     local state = initState
+    local defCol = state and T.BtnGrn or T.BtnRed
     local b = New("TextButton", {
-        Parent = ActionScroll,
-        BackgroundColor3 = state and T.BtnGrn or T.BtnRed,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, -8, 0, BH),
-        Font = Enum.Font.GothamBold,
-        Text = "  " .. (state and labelOn or labelOff),
-        TextColor3 = T.Text,
-        TextSize = FS,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        AutoButtonColor = false,
-        LayoutOrder = order,
-        ZIndex = 13,
+        Parent           = ActionScroll,
+        BackgroundColor3 = defCol,
+        BorderSizePixel  = 0,
+        Size             = UDim2.new(1, -8, 0, BH),
+        Font             = Enum.Font.GothamBold,
+        Text             = "  " .. (state and lblOn or lblOff),
+        TextColor3       = T.Text,
+        TextSize         = FS,
+        TextXAlignment   = Enum.TextXAlignment.Left,
+        AutoButtonColor  = false,
+        LayoutOrder      = order,
+        ZIndex           = 13,
     })
     Corner(4, b)
     b.MouseButton1Click:Connect(function()
@@ -789,11 +940,15 @@ local function AToggle(labelOn, labelOff, order, initState, onToggle)
         TweenService:Create(b, TweenInfo.new(0.15), {
             BackgroundColor3 = state and T.BtnGrn or T.BtnRed
         }):Play()
-        b.Text = "  " .. (state and labelOn or labelOff)
+        b.Text = "  " .. (state and lblOn or lblOff)
         if onToggle then onToggle(state, b) end
     end)
-    return b, function() return state end
+    return b
 end
+
+-- ============================================================
+-- MODIFIED PANEL
+-- ============================================================
 
 local function RefreshModPanel()
     for _, c in ipairs(ModList:GetChildren()) do
@@ -801,15 +956,19 @@ local function RefreshModPanel()
     end
     for i, entry in ipairs(modifiedCodes) do
         local row = New("TextButton", {
-            Parent = ModList, BackgroundColor3 = T.SurfL,
-            BorderSizePixel = 0,
-            Size = UDim2.new(1, -2, 0, RH + 2),
-            Font = Enum.Font.Gotham,
-            Text = " [" .. entry.Time .. "] " .. entry.Name,
-            TextColor3 = T.Text, TextSize = FS,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextTruncate = Enum.TextTruncate.AtEnd,
-            AutoButtonColor = false, LayoutOrder = i, ZIndex = 703,
+            Parent           = ModList,
+            BackgroundColor3 = T.SurfL,
+            BorderSizePixel  = 0,
+            Size             = UDim2.new(1, -2, 0, RH + 2),
+            Font             = Enum.Font.Gotham,
+            Text             = " [" .. entry.Time .. "] " .. entry.Name,
+            TextColor3       = T.Text,
+            TextSize         = FS,
+            TextXAlignment   = Enum.TextXAlignment.Left,
+            TextTruncate     = Enum.TextTruncate.AtEnd,
+            AutoButtonColor  = false,
+            LayoutOrder      = i,
+            ZIndex           = 703,
         })
         Corner(3, row)
         row.MouseEnter:Connect(function()
@@ -819,6 +978,8 @@ local function RefreshModPanel()
             TweenService:Create(row, TweenInfo.new(0.1), {BackgroundColor3 = T.SurfL}):Play()
         end)
         row.MouseButton1Click:Connect(function()
+            ModPanel.Visible = false
+            HideOverlay()
             if codebox then codebox:setRaw(entry.Code) end
             ClearActions()
             local o = 0
@@ -830,14 +991,14 @@ local function RefreshModPanel()
             ABtn("Run Code", no(), function()
                 local fn, err = loadstring(entry.Code)
                 if fn then xpcall(fn, function(e) warn("[HoltSpy] " .. e) end)
-                else warn("[HoltSpy] Parse error: " .. tostring(err)) end
+                else warn("[HoltSpy] " .. tostring(err)) end
             end)
             ABtn("Copy Looped Code", no(), function()
                 setclipboard("while task.wait(0.1) do\n    "
                     .. entry.Code:gsub("\n", "\n    ") .. "\nend")
             end)
             ABtn("Run Looped Code", no(), function()
-                local lid = "mod_" .. tostring(i)
+                local lid = "mod_lp_" .. tostring(i)
                 activeLoops[lid] = true
                 task.spawn(function()
                     while activeLoops[lid] do
@@ -853,17 +1014,17 @@ local function RefreshModPanel()
                     .. "if _G._holtModLoop then\n"
                     .. "    task.spawn(function()\n"
                     .. "        while _G._holtModLoop do\n"
-                    .. "            task.wait(0.1)\n            "
-                    .. entry.Code:gsub("\n", "\n            ")
-                    .. "\n        end\n    end)\nend"
+                    .. "            task.wait(0.1)\n"
+                    .. "            " .. entry.Code:gsub("\n", "\n            ") .. "\n"
+                    .. "        end\n"
+                    .. "    end)\n"
+                    .. "end"
                 )
             end)
             local lk = "mod_tog_" .. tostring(i)
             AToggle(
-                "Toggle Loop [ON]",
-                "Toggle Loop [OFF]",
-                no(),
-                activeLoops[lk] and true or false,
+                "Toggle Loop [ON]", "Toggle Loop [OFF]",
+                no(), activeLoops[lk] and true or false,
                 function(state)
                     if state then
                         activeLoops[lk] = true
@@ -885,16 +1046,20 @@ local function RefreshModPanel()
             end)
             ABtn("Edit", no(), function()
                 EditInput.Text = entry.Code
-                EditPanel.Visible = true; ShowOverlay()
+                EditPanel.Visible = true
+                ShowOverlay()
                 local sc, cc, oc
                 local function cls()
-                    HideOverlay(); EditPanel.Visible = false
+                    HideOverlay()
+                    EditPanel.Visible = false
                     if sc then sc:Disconnect() end
                     if cc then cc:Disconnect() end
                     if oc then oc:Disconnect() end
                 end
                 sc = EditSaveBtn.MouseButton1Click:Connect(function()
-                    entry.Code = EditInput.Text; cls(); RefreshModPanel()
+                    entry.Code = EditInput.Text
+                    cls()
+                    RefreshModPanel()
                 end)
                 cc = EditCloseBtn.MouseButton1Click:Connect(cls)
                 oc = Overlay.MouseButton1Click:Connect(cls)
@@ -904,10 +1069,26 @@ local function RefreshModPanel()
                     if e == entry then table.remove(modifiedCodes, idx); break end
                 end
                 RefreshModPanel()
+                ClearActions()
+                if codebox then codebox:setRaw("-- Entry deleted") end
             end, T.BtnRed)
         end)
     end
 end
+
+ModCloseBtn.MouseButton1Click:Connect(function()
+    ModPanel.Visible = false
+    HideOverlay()
+end)
+Overlay.MouseButton1Click:Connect(function()
+    EditPanel.Visible = false
+    ModPanel.Visible  = false
+    HideOverlay()
+end)
+
+-- ============================================================
+-- BUILD ACTION BUTTONS FOR A SELECTED REMOTE
+-- ============================================================
 
 local function BuildActions(log)
     ClearActions()
@@ -919,12 +1100,10 @@ local function BuildActions(log)
     local o = 0
     local function no() o = o + 1; return o end
 
-    -- Copy Code
     ABtn("Copy Code", no(), function()
         if log.GenScript then setclipboard(log.GenScript) end
     end)
 
-    -- Run Code (only touches game when YOU press it)
     ABtn("Run Code", no(), function()
         xpcall(function()
             if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
@@ -935,7 +1114,6 @@ local function BuildActions(log)
         end, function(e) warn("[HoltSpy] " .. e) end)
     end)
 
-    -- Copy Looped Code
     ABtn("Copy Looped Code", no(), function()
         if log.GenScript then
             setclipboard("while task.wait(0.1) do\n    "
@@ -943,7 +1121,6 @@ local function BuildActions(log)
         end
     end)
 
-    -- Run Looped Code
     ABtn("Run Looped Code", no(), function()
         local lid = tostring(remId) .. "_lp"
         activeLoops[lid] = true
@@ -961,7 +1138,6 @@ local function BuildActions(log)
         end)
     end)
 
-    -- Copy Toggleable Loop Code
     ABtn("Copy Toggleable Loop", no(), function()
         if not log.GenScript then return end
         local tag   = tostring(remId):gsub("[^%w]", ""):sub(-6)
@@ -979,13 +1155,10 @@ local function BuildActions(log)
         )
     end)
 
-    -- Toggle Loop button (green/red)
     local lk = tostring(remId) .. "_tog"
     AToggle(
-        "Toggle Loop [ON]",
-        "Toggle Loop [OFF]",
-        no(),
-        activeLoops[lk] and true or false,
+        "Toggle Loop [ON]", "Toggle Loop [OFF]",
+        no(), activeLoops[lk] and true or false,
         function(state)
             if state then
                 activeLoops[lk] = true
@@ -1007,26 +1180,27 @@ local function BuildActions(log)
         end
     )
 
-    -- Stop All Loops
     ABtn("Stop All Loops", no(), function()
         for k in pairs(activeLoops) do activeLoops[k] = false end
         table.clear(activeLoops)
     end)
 
-    -- Edit Code
     ABtn("Edit Code", no(), function()
         EditInput.Text = log.GenScript or ""
-        EditPanel.Visible = true; ShowOverlay()
+        EditPanel.Visible = true
+        ShowOverlay()
         local sc, cc, oc
         local function cls()
-            HideOverlay(); EditPanel.Visible = false
+            HideOverlay()
+            EditPanel.Visible = false
             if sc then sc:Disconnect() end
             if cc then cc:Disconnect() end
             if oc then oc:Disconnect() end
         end
         sc = EditSaveBtn.MouseButton1Click:Connect(function()
             table.insert(modifiedCodes, {
-                Name = remName, Code = EditInput.Text,
+                Name = remName,
+                Code = EditInput.Text,
                 Time = os.date("%H:%M:%S"),
             })
             cls()
@@ -1035,17 +1209,15 @@ local function BuildActions(log)
         oc = Overlay.MouseButton1Click:Connect(cls)
     end)
 
-    -- View Modified
     ABtn("View Modified", no(), function()
         RefreshModPanel()
-        ModPanel.Visible = true; ShowOverlay()
+        ModPanel.Visible = true
+        ShowOverlay()
     end)
 
-    -- Exclude (Instance) - ONLY hides from log, never blocks game
     ABtn("Exclude (Instance)", no(), function()
         if remId and remId ~= "" then
             blacklistById[remId] = true
-            -- Remove all existing log entries for this remote from UI
             for i = #logs, 1, -1 do
                 if logs[i].DebugId == remId then
                     if logs[i].Log and logs[i].Log.Parent then
@@ -1056,11 +1228,12 @@ local function BuildActions(log)
             end
             selected = nil
             ClearActions()
-            if codebox then codebox:setRaw("-- Remote excluded from log (still works in game)") end
+            if codebox then
+                codebox:setRaw("-- Remote excluded from log\n-- (it still works normally in the game)")
+            end
         end
     end)
 
-    -- Exclude (Name) - ONLY hides from log, never blocks game
     ABtn("Exclude (Name)", no(), function()
         if remName ~= "" then
             blacklistByName[remName] = true
@@ -1074,35 +1247,25 @@ local function BuildActions(log)
             end
             selected = nil
             ClearActions()
-            if codebox then codebox:setRaw("-- All '" .. remName .. "' remotes excluded from log") end
+            if codebox then
+                codebox:setRaw("-- All '" .. remName .. "' remotes excluded from log\n-- (they still work normally in the game)")
+            end
         end
     end)
 
-    -- Clear Exclusions
     ABtn("Clear Exclusions", no(), function()
         table.clear(blacklistById)
         table.clear(blacklistByName)
     end)
 
-    -- Copy Remote Path
     ABtn("Copy Remote Path", no(), function()
         pcall(function() setclipboard(remote:GetFullName()) end)
     end)
 
-    -- Discord
     ABtn("Discord", no(), function()
         setclipboard("https://discord.gg/E7Tfjgruck")
     end)
 end
-
-ModCloseBtn.MouseButton1Click:Connect(function()
-    ModPanel.Visible = false; HideOverlay()
-end)
-Overlay.MouseButton1Click:Connect(function()
-    EditPanel.Visible = false
-    ModPanel.Visible  = false
-    HideOverlay()
-end)
 
 -- ============================================================
 -- SELECT LOG
@@ -1116,8 +1279,8 @@ local function SelectLog(log)
     if log and log.Button then log.Button.BackgroundTransparency = 0.3 end
     if log then
         if sideClosed then
-            sideClosed = false
-            RP.Visible = true
+            sideClosed  = false
+            RP.Visible  = true
             TweenService:Create(LP, TweenInfo.new(0.2), {Size = UDim2.new(0, LW, 1, -TH)}):Play()
             TweenService:Create(RP, TweenInfo.new(0.2), {Size = UDim2.new(1, -LW, 1, -TH)}):Play()
         end
@@ -1127,7 +1290,7 @@ local function SelectLog(log)
 end
 
 -- ============================================================
--- ADD REMOTE LOG
+-- ADD REMOTE TO LOG LIST
 -- ============================================================
 
 local function AddRemoteLog(rType, data)
@@ -1136,31 +1299,43 @@ local function AddRemoteLog(rType, data)
     if not remote then return end
 
     local frame = New("Frame", {
-        LayoutOrder = layoutOrder, Name = "RL",
-        Parent = LogList, BackgroundTransparency = 1,
-        Size = UDim2.new(1, -2, 0, RH),
+        LayoutOrder      = layoutOrder,
+        Name             = "RL",
+        Parent           = LogList,
+        BackgroundTransparency = 1,
+        Size             = UDim2.new(1, -2, 0, RH),
     })
     New("Frame", {
-        Parent = frame,
+        Parent           = frame,
         BackgroundColor3 = rType == "event" and T.EvCol or T.FnCol,
-        BorderSizePixel = 0, Position = UDim2.new(0, 0, 0.15, 0),
-        Size = UDim2.new(0, 2, 0.7, 0), ZIndex = 13,
+        BorderSizePixel  = 0,
+        Position         = UDim2.new(0, 0, 0.15, 0),
+        Size             = UDim2.new(0, 2, 0.7, 0),
+        ZIndex           = 13,
     })
     New("TextLabel", {
-        Parent = frame, BackgroundTransparency = 1,
-        Position = UDim2.new(0, 6, 0, 0),
-        Size = UDim2.new(1, -8, 1, 0),
-        Font = Enum.Font.Gotham, Text = remote.Name,
-        TextColor3 = T.Text, TextSize = FS,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 13,
+        Parent              = frame,
+        BackgroundTransparency = 1,
+        Position            = UDim2.new(0, 6, 0, 0),
+        Size                = UDim2.new(1, -8, 1, 0),
+        Font                = Enum.Font.Gotham,
+        Text                = remote.Name,
+        TextColor3          = T.Text,
+        TextSize            = FS,
+        TextXAlignment      = Enum.TextXAlignment.Left,
+        TextTruncate        = Enum.TextTruncate.AtEnd,
+        ZIndex              = 13,
     })
     local btn = New("TextButton", {
-        Name = "B", Parent = frame,
-        BackgroundColor3 = Color3.new(0, 0, 0),
-        BackgroundTransparency = 0.85, BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 1, 0),
-        AutoButtonColor = false, Text = "", ZIndex = 14,
+        Name                = "B",
+        Parent              = frame,
+        BackgroundColor3    = Color3.new(0, 0, 0),
+        BackgroundTransparency = 0.85,
+        BorderSizePixel     = 0,
+        Size                = UDim2.new(1, 0, 1, 0),
+        AutoButtonColor     = false,
+        Text                = "",
+        ZIndex              = 14,
     })
     Corner(3, btn)
 
@@ -1186,7 +1361,6 @@ local function AddRemoteLog(rType, data)
         GenScript = "-- Generating...",
     }
 
-    -- Generate script async (never touches game)
     task.spawn(function()
         local ok, res = pcall(genScript, remote, log.args)
         log.GenScript = ok and res or ("-- Error: " .. tostring(res))
@@ -1195,7 +1369,6 @@ local function AddRemoteLog(rType, data)
         end
     end)
 
-    -- Click: open right panel with code and action buttons
     btn.MouseButton1Click:Connect(function()
         SelectLog(log)
     end)
@@ -1207,7 +1380,9 @@ local function AddRemoteLog(rType, data)
     table.insert(remoteLogs, 1, frame)
     if #remoteLogs > max then
         for i = max + 1, #remoteLogs do
-            if remoteLogs[i] and remoteLogs[i].Parent then remoteLogs[i]:Destroy() end
+            if remoteLogs[i] and remoteLogs[i].Parent then
+                remoteLogs[i]:Destroy()
+            end
         end
         while #remoteLogs > max do table.remove(remoteLogs) end
         while #logs > max do table.remove(logs) end
@@ -1231,7 +1406,7 @@ SBar:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 -- ============================================================
--- REMOTE HANDLER (LOG DISPLAY ONLY)
+-- REMOTE HANDLER (display filter only, never blocks game)
 -- ============================================================
 
 local function remoteHandler(data)
@@ -1239,7 +1414,6 @@ local function remoteHandler(data)
     local id   = data.id   or ""
     local name = data.remote.Name or ""
 
-    -- Only hide from display, never block the actual call
     if isHidden(id, name) then return end
 
     if realAutoblock then
@@ -1250,7 +1424,8 @@ local function remoteHandler(data)
             h.count = h.count + 1
             if h.count > 20 then excluding[id] = true; return end
         else
-            h.count = 0; h.last = tick()
+            h.count = 0
+            h.last  = tick()
         end
     end
 
@@ -1275,55 +1450,56 @@ end
 
 -- ============================================================
 -- HOOKS
--- THE HOOK ONLY READS DATA THEN ALWAYS PASSES THROUGH.
--- IT NEVER PREVENTS A REMOTE FROM FIRING.
--- IT NEVER YIELDS.
--- IT NEVER ERRORS THE GAME.
+-- Calls original FIRST, then logs in background.
+-- NEVER blocks, NEVER errors the game.
 -- ============================================================
 
 local namecallHook = newcclosure(function(...)
-    -- ALWAYS call original first so game is never interrupted
-    local results = table.pack(originalNamecall(...))
+    -- Always fire original immediately
+    local rets = table.pack(originalNamecall(...))
 
-    -- Now log it in the background (pcall wrapped, never errors)
-    local ok, method = pcall(getnamecallmethod)
-    if ok and method and (
-        method == "FireServer"   or method == "fireServer"
-     or method == "InvokeServer" or method == "invokeServer"
-    ) then
-        local s = select(1, ...)
-        local typeOk = pcall(function()
-            if typeof(s) == "Instance" and (
-                s:IsA("RemoteEvent") or
-                s:IsA("RemoteFunction") or
-                s:IsA("UnreliableRemoteEvent")
-            ) then
-                if not realLogCaller and checkcaller() then return end
-                local idOk, id   = pcall(SafeDebugId, s)
-                local safeId     = idOk and id or ""
-                local name       = ""
-                pcall(function() name = s.Name end)
-                if isHidden(safeId, name) then return end
-
-                local allArgs    = {...}
-                local passedArgs = {}
-                for i = 2, #allArgs do passedArgs[i-1] = allArgs[i] end
-                local cloneOk, copied = pcall(deepclone, passedArgs)
-                local cs; pcall(function() cs = getcallingscript() end)
-                if cs then pcall(function() cs = cloneref(cs) end) end
-
-                schedule(remoteHandler, {
-                    method        = method,
-                    remote        = s,
-                    args          = cloneOk and copied or passedArgs,
-                    id            = safeId,
-                    callingscript = cs,
-                })
+    -- Log in background (fully pcall wrapped)
+    task.defer(function()
+        pcall(function()
+            local method = getnamecallmethod()
+            if method ~= "FireServer"   and method ~= "fireServer"
+            and method ~= "InvokeServer" and method ~= "invokeServer" then
+                return
             end
-        end)
-    end
+            local s = select(1, ...)
+            if typeof(s) ~= "Instance" then return end
+            if not (s:IsA("RemoteEvent") or s:IsA("RemoteFunction") or s:IsA("UnreliableRemoteEvent")) then
+                return
+            end
+            if not realLogCaller and checkcaller() then return end
 
-    return table.unpack(results, 1, results.n)
+            local idOk, id = pcall(SafeDebugId, s)
+            local safeId   = idOk and id or ""
+            local name     = ""
+            pcall(function() name = s.Name end)
+
+            if isHidden(safeId, name) then return end
+
+            local allArgs    = {...}
+            local passedArgs = {}
+            for i = 2, #allArgs do passedArgs[i-1] = allArgs[i] end
+
+            local cloneOk, copied = pcall(deepclone, passedArgs)
+            local cs
+            pcall(function() cs = getcallingscript() end)
+            if cs then pcall(function() cs = cloneref(cs) end) end
+
+            schedule(remoteHandler, {
+                method        = method,
+                remote        = s,
+                args          = cloneOk and copied or passedArgs,
+                id            = safeId,
+                callingscript = cs,
+            })
+        end)
+    end)
+
+    return table.unpack(rets, 1, rets.n)
 end)
 
 local function enableHooks()
@@ -1334,8 +1510,8 @@ local function enableHooks()
         local mt    = getrawmeta(game)
         local wasRO = isreadonly(mt)
         if wasRO then makewritable(mt) end
-        originalNamecall  = mt.__namecall
-        mt.__namecall     = namecallHook
+        originalNamecall = mt.__namecall
+        mt.__namecall    = namecallHook
         if wasRO then makereadonly2(mt) end
     end
     spyActive = true
@@ -1362,7 +1538,7 @@ end
 -- WINDOW CONTROLS
 -- ============================================================
 
--- Dragging (fixed for both PC and mobile)
+-- Dragging
 do
     local dragging   = false
     local dragOffset = Vector2.zero
@@ -1370,13 +1546,12 @@ do
     TopBar.InputBegan:Connect(function(inp)
         if inp.UserInputType ~= Enum.UserInputType.MouseButton1
         and inp.UserInputType ~= Enum.UserInputType.Touch then return end
-        -- Do not drag if clicking the window control buttons
-        local posX   = inp.Position.X
-        local tbAbs  = TopBar.AbsolutePosition
-        local tbSize = TopBar.AbsoluteSize
-        if posX > tbAbs.X + tbSize.X - BW * 3 then return end
-        dragging    = true
-        dragOffset  = Vector2.new(
+        local posX  = inp.Position.X
+        local tbAbs = TopBar.AbsolutePosition
+        local tbSz  = TopBar.AbsoluteSize
+        if posX > tbAbs.X + tbSz.X - BW * 3 then return end
+        dragging   = true
+        dragOffset = Vector2.new(
             inp.Position.X - BG.AbsolutePosition.X,
             inp.Position.Y - BG.AbsolutePosition.Y
         )
@@ -1403,10 +1578,10 @@ do
     end)
 end
 
--- Minimize: instant snap
+-- Minimize (instant)
 MinBtn.MouseButton1Click:Connect(function()
-    isMinimized    = true
-    BG.Visible     = false
+    isMinimized     = true
+    BG.Visible      = false
     MinIcon.Visible = true
 end)
 MinIconBtn.MouseButton1Click:Connect(function()
@@ -1435,13 +1610,9 @@ SideBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Title: toggle spy on/off (green = on, red = off)
+-- Title: toggle spy (green = on, red = off)
 TitleBtn.MouseButton1Click:Connect(function()
-    if spyActive then
-        disableHooks()
-    else
-        enableHooks()
-    end
+    if spyActive then disableHooks() else enableHooks() end
 end)
 TitleBtn.MouseEnter:Connect(function()
     TweenService:Create(TitleBtn, TweenInfo.new(0.15), {
@@ -1472,7 +1643,8 @@ CloseBtn.MouseButton1Click:Connect(Shutdown)
 
 local function Init()
     if not RunService:IsClient() then
-        warn("[HoltSpy] Client only!"); return
+        warn("[HoltSpy] Client only!")
+        return
     end
 
     getgenv().HoltSpyExecuted = true
@@ -1486,6 +1658,7 @@ local function Init()
             codebox:setRaw(
                 "-- Holt Spy\n"
                 .. "-- Click a remote in the list to view its code\n"
+                .. "-- All buttons appear below after selecting a remote\n"
                 .. "-- holt.pages.dev  |  discord.gg/E7Tfjgruck\n"
                 .. "-- Made by BufferClick"
             )
@@ -1493,15 +1666,19 @@ local function Init()
     end
     if not codebox then
         local tb = New("TextBox", {
-            Parent = CodeFrame, BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 1, 0),
-            Font = Enum.Font.Code,
-            Text = "-- Holt Spy ready",
-            TextColor3 = T.Text, TextSize = FS,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextYAlignment = Enum.TextYAlignment.Top,
-            MultiLine = true, TextWrapped = true,
-            ClearTextOnFocus = false, ZIndex = 12,
+            Parent              = CodeFrame,
+            BackgroundTransparency = 1,
+            Size                = UDim2.new(1, 0, 1, 0),
+            Font                = Enum.Font.Code,
+            Text                = "-- Holt Spy ready",
+            TextColor3          = T.Text,
+            TextSize            = FS,
+            TextXAlignment      = Enum.TextXAlignment.Left,
+            TextYAlignment      = Enum.TextYAlignment.Top,
+            MultiLine           = true,
+            TextWrapped         = true,
+            ClearTextOnFocus    = false,
+            ZIndex              = 12,
         })
         Pad(6, 6, 4, 4, tb)
         codebox = {
@@ -1512,28 +1689,37 @@ local function Init()
 
     schedulerConn = RunService.Heartbeat:Connect(taskScheduler)
 
-    -- Start spy (hooks set up)
+    -- Enable hooks
     enableHooks()
 
-    -- Loading bar animation
+    -- Loading bar animation (runs independently, always visible)
     task.spawn(function()
-        local steps = {
-            {0.4, "Loading..."},
-            {0.8, "Hooking..."},
-            {1.0, "Ready!"},
-        }
-        for _, s in ipairs(steps) do
-            TweenService:Create(LFill, TweenInfo.new(0.2), {
-                Size = UDim2.new(s[1], 0, 1, 0)
-            }):Play()
-            task.wait(0.25)
-        end
-        task.wait(0.4)
-        TweenService:Create(LoadF, TweenInfo.new(0.3), {
-            Position = UDim2.new(1, 10, 1, -62)
+        task.wait(0.1)
+
+        TweenService:Create(LFill, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0.4, 0, 1, 0)
         }):Play()
-        task.wait(0.35)
-        pcall(function() LoadF:Destroy() end)
+        task.wait(0.4)
+
+        TweenService:Create(LFill, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0.75, 0, 1, 0)
+        }):Play()
+        task.wait(0.4)
+
+        TweenService:Create(LFill, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(1, 0, 1, 0)
+        }):Play()
+        task.wait(0.5)
+
+        -- Slide out to the right
+        TweenService:Create(LoadF, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            Position = UDim2.new(1, 210, 1, -10)
+        }):Play()
+        task.wait(0.45)
+
+        if LoadF and LoadF.Parent then
+            LoadF:Destroy()
+        end
     end)
 end
 
